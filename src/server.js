@@ -13,18 +13,20 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, "..", "public")));
 
 app.post("/api/chat", async (req, res) => {
-  const { message } = req.body;
+  const { message, history } = req.body;
   if (!message) {
     return res.status(400).json({ reply: "Por favor escribe un mensaje." });
   }
 
+  const messagesForGroq = [
+    { role: "system", content: systemPrompt },
+    ...(history || []),
+  ];
+
   try {
     const response = await groq.chat.completions.create({
       model: "llama-3.3-70b-versatile",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: message },
-      ],
+      messages: messagesForGroq,
       max_tokens: 500,
     });
 
