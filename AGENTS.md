@@ -7,11 +7,11 @@ Responde preguntas frecuentes usando la API de Claude.
 ## Stack
 - Frontend: HTML/CSS/JS vanilla (público/)
 - Backend: Node.js + Express (src/server.js)
-- API: Anthropic Claude (SDK oficial)
+- API: Groq (Llama 3.3 70B, tier gratis, 14,400 req/día)
 
 ## FAQ Context
 Las FAQs están en src/faq-context.js y se envían como contexto del sistema
-a Claude para que responda basado en esa información.
+al modelo para que responda basado en esa información.
 
 ## Instrucciones
 - Idioma: español
@@ -26,5 +26,5 @@ a Claude para que responda basado en esa información.
 
 ## Cómo correr
 1. npm install
-2. Crear .env con ANTHROPIC_API_KEY
+2. Crear .env con GROQ_API_KEY
 3. npm start

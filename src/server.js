@@ -1,13 +1,13 @@
 require("dotenv").config();
 const express = require("express");
 const path = require("path");
-const Anthropic = require("@anthropic-ai/sdk").default;
+const Groq = require("groq-sdk");
 const { systemPrompt } = require("./faq-context");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "..", "public")));
@@ -19,17 +19,19 @@ app.post("/api/chat", async (req, res) => {
   }
 
   try {
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
+    const response = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: message },
+      ],
       max_tokens: 500,
-      system: systemPrompt,
-      messages: [{ role: "user", content: message }],
     });
 
-    const reply = response.content[0].text;
+    const reply = response.choices[0]?.message?.content || "No pude generar una respuesta.";
     res.json({ reply });
   } catch (error) {
-    console.error("Error calling Claude API:", error);
+    console.error("Error calling Groq API:", error);
     res.status(500).json({ reply: "Lo siento, hubo un error. Intenta de nuevo." });
   }
 });
