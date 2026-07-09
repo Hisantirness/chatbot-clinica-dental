@@ -1,0 +1,15 @@
+{
+  "name": "chatbot-clinica-dental",
+  "version": "1.0.0",
+  "description": "Chatbot de atención al cliente para Clínica Sonrisa Sana",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
+  }
+}

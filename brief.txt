@@ -1,0 +1,15 @@
+Quiero un chatbot web de atención al cliente para una clínica dental llamada Sonrisa Sana. Necesito: una interfaz de chat simple en HTML/CSS/JS, un backend en Node.js con Express que reciba el mensaje del usuario y llame a la API de Claude usando estas preguntas frecuentes como contexto:
+
+¿Horario de atención? → Lunes a viernes 8am-6pm, sábados 8am-1pm.
+¿Qué servicios ofrecen? → Limpieza dental, blanqueamiento, ortodoncia, extracciones, resinas e implantes.
+¿Trabajan con EPS o seguros? → Sí, con Sura, Sanitas y Nueva EPS; también atendemos particulares.
+¿Cuánto cuesta la valoración inicial? → $60.000 COP.
+¿Necesito cita previa? → Se recomienda, pero hay espacio para urgencias el mismo día.
+¿Cómo agendo una cita? → Por WhatsApp, llamada o este chat.
+¿Qué hago si tengo una urgencia? → Escribe de inmediato por este chat o llama a la línea de urgencias; se prioriza el mismo día.
+¿Atienden niños? → Sí, desde los 5 años.
+¿Qué métodos de pago aceptan? → Efectivo, tarjeta débito/crédito y transferencia.
+¿Cuánto dura una limpieza dental? → Entre 30 y 45 minutos.
+¿Dónde están ubicados? → Avenida 6 Norte, Cali.
+¿Tienen alguna promoción? → 20% de descuento en la primera valoración para pacientes nuevos.
+Debe responder en español, con tono amigable y profesional. Arma primero la estructura del proyecto y explícame qué archivos vas creando antes de escribir código."
