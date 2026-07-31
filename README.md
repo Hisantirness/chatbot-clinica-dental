@@ -2,10 +2,13 @@
 
 [![CI](https://github.com/Hisantirness/chatbot-clinica-dental/actions/workflows/ci.yml/badge.svg)](https://github.com/Hisantirness/chatbot-clinica-dental/actions/workflows/ci.yml)
 [![Tests](https://img.shields.io/badge/tests-43%20local%20%2B%207%20integration-brightgreen)](#)
-[![Node](https://img.shields.io/badge/node-20.x-339933?logo=node.js)](https://nodejs.org)
-[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
-[![Groq](https://img.shields.io/badge/Groq-Llama%203.3%2070B-orange)](#)
-[![Deploy](https://img.shields.io/badge/deploy-Railway-7b00ff?logo=railway)](#)
+[![Node](https://img.shields.io/badge/Node.js-20.x-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org)
+[![Express](https://img.shields.io/badge/Express-4-000000?logo=express&logoColor=white)](https://expressjs.com)
+[![SQLite](https://img.shields.io/badge/SQLite-sql.js-003B57?logo=sqlite&logoColor=white)](https://sql.js.org)
+[![Groq](https://img.shields.io/badge/Groq-Llama%203.3%2070B-F55036?logo=groq&logoColor=white)](https://groq.com)
+[![Vitest](https://img.shields.io/badge/Vitest-6E9F18?logo=vitest&logoColor=white)](https://vitest.dev)
+[![Railway](https://img.shields.io/badge/Railway-7b00ff?logo=railway&logoColor=white)](https://railway.app)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Chatbot web inteligente de atención al cliente para clínica dental. Responde preguntas frecuentes, consulta disponibilidad y **reserva citas reales** en base de datos, todo mediante lenguaje natural.
 
@@ -13,8 +16,7 @@ Chatbot web inteligente de atención al cliente para clínica dental. Responde p
 
 ## Demo
 
-La app está corriendo en producción:  
-👉 **[chatbot-clinica-dental-production.up.railway.app](https://chatbot-clinica-dental-production.up.railway.app)**
+La app está corriendo en producción: **[chatbot-clinica-dental-production.up.railway.app](https://chatbot-clinica-dental-production.up.railway.app)**
 
 ## Screenshots
 
@@ -28,71 +30,91 @@ Panel administrativo:
 
 ## Arquitectura
 
-### Diagrama de flujo
+### Vista general
 
-```
-                    ┌──────────────────────────────────────────────────┐
-                    │                  CLIENTE (Browser)               │
-                    │   index.html + style.css + script.js             │
-                    │   admin.html + admin.css + admin.js              │
-                    └───────────────────────┬──────────────────────────┘
-                                            │ HTTP (same-origin)
-                                            ▼
-┌──────────────────────────────────────────────────────────────────────┐
-│                      EXPRESS SERVER (src/server.js)                  │
-│                                                                      │
-│  ┌─────────────┐  ┌──────────────┐  ┌─────────────────────────────┐  │
-│  │ Helmet      │  │ CORS         │  │ Rate limit (20 req/min)     │  │
-│  │ CSP estricto│  │ allowlist    │  │ JSON body ≤ 10 KB           │  │
-│  │ HSTS, etc.  │  │ (origin fijo)│  │ + request logger + audit    │  │
-│  └─────────────┘  └──────────────┘  └──────────────┬──────────────┘  │
-│                                                    │                │
-│        ┌────────────────────────────────────────────┴───────┐        │
-│        │                    ROUTES                          │        │
-│        │  /health        → status + timestamp               │        │
-│        │  /              → public/index.html                │        │
-│        │  /admin         → public/admin.html                │        │
-│        │  POST /api/chat → loop tool-calling con Groq       │        │
-│        │  GET  /api/citas?telefono=      (Bearer token)     │        │
-│        │  DELETE /api/citas/:id         (Bearer token)      │        │
-│        │  GET  /api/admin/citas         (Bearer token)      │        │
-│        │  GET  /api/admin/citas/export  (Bearer token)      │        │
-│        └───────────────────────┬────────────────────────────┘        │
-└───────────────────────────────┼─────────────────────────────────────┘
-                                │
-              ┌─────────────────┼──────────────────┐
-              ▼                 ▼                  ▼
-   ┌────────────────┐  ┌───────────────┐  ┌──────────────────┐
-   │  Groq API      │  │  src/tools.js │  │  src/db.js       │
-   │  (Llama 3.3    │  │  4 tools      │  │  (sql.js)        │
-   │   70B)         │  │  tool schemas │  │                  │
-   │  tool calling  │  │  + ejecución  │  │  ┌────────────┐  │
-   └────────────────┘  └──────┬────────┘  │  │ clinica.db │  │
-                              │           │  │ (Volume)   │  │
-                              └──────────►│  └────────────┘  │
-                                          └──────────────────┘
+```mermaid
+flowchart TD
+    subgraph Client["Cliente (Browser)"]
+        direction LR
+        Chat["Chat del paciente<br/>index.html · style.css · script.js"]
+        Admin["Panel admin<br/>admin.html · admin.css · admin.js"]
+    end
+
+    subgraph Express["Servidor Express · src/server.js"]
+        direction TB
+        Middleware["Middleware<br/>Helmet · CSP estricta · CORS allowlist<br/>Rate limit 20 req/min · JSON ≤ 10 KB<br/>Logger + audit"]
+        Routes["Rutas<br/>GET /health · GET / · GET /admin<br/>POST /api/chat<br/>GET·DELETE /api/citas<br/>GET /api/admin/citas · /export"]
+    end
+
+    subgraph Data["Capa de datos"]
+        direction LR
+        Groq["Groq API<br/>(Llama 3.3 70B)"]
+        Tools["src/tools.js<br/>4 tools"]
+        DB[("src/db.js · sql.js<br/>clinica.db<br/>(Volume /data)")]
+    end
+
+    Chat -->|HTTP same-origin| Middleware
+    Admin -->|HTTP same-origin| Middleware
+    Middleware --> Routes
+    Routes -->|"/api/chat"| Groq
+    Routes -->|"tool calls"| Tools
+    Tools -->|"SQL"| DB
+    Groq -->|"tool schemas"| Tools
 ```
 
 ### Flujo del chatbot (tool calling loop)
 
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as Usuario
+    participant S as Express server.js
+    participant G as Groq (Llama 3.3 70B)
+    participant T as tools.js
+    participant D as sql.js (BD)
+
+    U->>S: POST /api/chat {message, history}
+    S->>S: sanitize(message) + validar longitud
+    S->>G: chat.completions (system prompt + history)
+    loop Maximo 5 iteraciones
+        alt ¿tool_calls?
+            G-->>S: tool_calls (args validados)
+            S->>T: ejecutar tool sobre BD
+            T->>D: SELECT / INSERT / DELETE
+            D-->>T: resultado
+            T-->>S: JSON con resultado
+            S->>G: append resultado como mensaje "tool"
+        else No hay tool_calls
+            G-->>S: respuesta final
+            S-->>U: reply
+        end
+    end
 ```
-Usuario escribe mensaje
-        │
-        ▼
-POST /api/chat ──► sanitize(message) ──► [system prompt + history + message]
-        │
-        ▼
-Groq chat.completions (tools: consultar_disponibilidad, reservar_cita,
-                          consultar_mis_citas, cancelar_cita)
-        │
-        ▼
-   ¿tool_calls? ──NO──► devolver reply al usuario
-        │
-       SÍ (máx. 5 iteraciones)
-        ▼
-   Ejecutar la tool sobre la BD (sql.js)
-        │
-        └──► append resultado como mensaje "tool" ──► Groq de nuevo
+
+### Esquema de la base de datos
+
+```mermaid
+erDiagram
+    CITAS {
+        INTEGER id PK "AUTOINCREMENT"
+        TEXT nombre "NOT NULL"
+        TEXT cedula "NOT NULL"
+        TEXT telefono "NOT NULL"
+        TEXT servicio "NOT NULL"
+        TEXT fecha "NOT NULL"
+        TEXT hora "NOT NULL"
+        TEXT creado_en "DEFAULT datetime('now')"
+    }
+```
+
+### Ciclo de vida de una cita
+
+```mermaid
+stateDiagram-v2
+    [*] --> Disponible: franja libre de 45 min
+    Disponible --> Reservada: reservar_cita
+    Reservada --> Disponible: cancelar_cita
+    Reservada --> [*]: cita cumplida
 ```
 
 ### Componentes
@@ -129,6 +151,13 @@ Este proyecto no es un chatbot genérico: cada problema de producción real se r
 - **Tests idempotentes** — Los tests escribían en la DB real y fallaban en la segunda corrida. Se aisló la DB de pruebas en un archivo temporal por proceso (`test-setup.mjs`).
 
 ## Tech Stack
+
+![Node](https://img.shields.io/badge/Node.js-20.x-339933?logo=nodedotjs&logoColor=white)
+![Express](https://img.shields.io/badge/Express-4-000000?logo=express&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-sql.js-003B57?logo=sqlite&logoColor=white)
+![Groq](https://img.shields.io/badge/Groq-Llama%203.3%2070B-F55036?logo=groq&logoColor=white)
+![HTML](https://img.shields.io/badge/HTML%2FCSS%2FJS-vanilla-E34F26?logo=html5&logoColor=white)
+![Vitest](https://img.shields.io/badge/Vitest-6E9F18?logo=vitest&logoColor=white)
 
 | Capa | Tecnología |
 |------|-----------|
@@ -296,7 +325,7 @@ npm run init-db
 npm start
 ```
 
-Abrir `http://localhost:3000` 🚀
+Abrir `http://localhost:3000`
 
 ## Scripts
 
