@@ -2,27 +2,56 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Sonrisa Sana - Chat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="chat-container">
+  <div class="chat-container" role="main" aria-label="Chat de atención al cliente">
     <header class="chat-header">
-      <h1>🦷 Sonrisa Sana</h1>
-      <p>¿En qué podemos ayudarte?</p>
+      <div class="header-content">
+        <div class="header-icon" aria-hidden="true">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/>
+            <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+            <path d="M9 9h.01M15 9h.01" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div>
+          <h1>Sonrisa Sana</h1>
+          <p class="header-status">
+            <span class="status-dot" aria-hidden="true"></span>
+            En línea
+          </p>
+        </div>
+      </div>
     </header>
 
-    <div class="chat-messages" id="messages">
+    <div class="chat-messages" id="messages" role="log" aria-live="polite" aria-label="Mensajes">
       <div class="message bot">
-        <p>¡Hola! Bienvenido a Clínica Dental Sonrisa Sana. Soy tu asistente virtual, ¿en qué puedo ayudarte hoy?</p>
+        <div class="message-content">
+          <p>¡Hola! Bienvenido a Clínica Dental <strong>Sonrisa Sana</strong>. Soy tu asistente virtual, ¿en qué puedo ayudarte hoy?</p>
+        </div>
+        <span class="message-time" data-localize></span>
       </div>
     </div>
 
-    <form class="chat-input" id="chat-form">
-      <input type="text" id="message-input" placeholder="Escribe tu mensaje..." autocomplete="off" maxlength="500">
-      <button type="submit">Enviar</button>
-    </form>
+    <div class="chat-input-area">
+      <form class="chat-input" id="chat-form">
+        <div class="input-wrapper">
+          <input type="text" id="message-input" placeholder="Escribe tu mensaje..." autocomplete="off" maxlength="500" aria-label="Mensaje">
+        </div>
+        <button type="submit" id="send-button" aria-label="Enviar mensaje">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"/>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+        </button>
+      </form>
+      <p class="input-hint">Presiona Enter para enviar</p>
+    </div>
   </div>
 
   <script src="script.js"></script>

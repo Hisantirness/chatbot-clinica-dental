@@ -1,51 +1,55 @@
 const form = document.getElementById("chat-form");
 const input = document.getElementById("message-input");
 const messages = document.getElementById("messages");
+const sendBtn = document.getElementById("send-button");
 
 let conversationHistory = [];
 
-form.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const text = input.value.trim();
-  if (!text) return;
+function getTimestamp() {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2, "0");
+  const m = String(now.getMinutes()).padStart(2, "0");
+  return `${h}:${m}`;
+}
 
-  addMessage(text, "user");
-  input.value = "";
+function addMessage(text, sender, extraClass = "") {
+  const div = document.createElement("div");
+  div.className = `message ${sender} ${extraClass}`.trim();
 
-  conversationHistory.push({ role: "user", content: text });
+  const content = document.createElement("div");
+  content.className = "message-content";
+  content.innerHTML = `<p>${escapeHtml(text)}</p>`;
+  div.appendChild(content);
 
-  const button = form.querySelector("button");
-  button.disabled = true;
+  const time = document.createElement("span");
+  time.className = "message-time";
+  time.textContent = getTimestamp();
+  div.appendChild(time);
 
-  showTypingIndicator();
+  messages.appendChild(div);
+  scrollToBottom();
+  return div;
+}
 
-  try {
-    const res = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: text, history: conversationHistory }),
-    });
+function escapeHtml(text) {
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
+}
 
-    const data = await res.json();
-    removeTypingIndicator();
-    addMessage(data.reply, "bot");
-    conversationHistory.push({ role: "assistant", content: data.reply });
-  } catch {
-    removeTypingIndicator();
-    addMessage("Lo siento, hubo un error de conexión. Intenta de nuevo.", "bot");
-  } finally {
-    button.disabled = false;
-    input.focus();
-  }
-});
+function scrollToBottom() {
+  requestAnimationFrame(() => {
+    messages.scrollTop = messages.scrollHeight;
+  });
+}
 
 function showTypingIndicator() {
   const div = document.createElement("div");
-  div.className = "message bot typing";
+  div.className = "typing-indicator";
   div.id = "typing-indicator";
-  div.innerHTML = `<p><span class="dot"></span><span class="dot"></span><span class="dot"></span></p>`;
+  div.innerHTML = `<span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>`;
   messages.appendChild(div);
-  messages.scrollTop = messages.scrollHeight;
+  scrollToBottom();
 }
 
 function removeTypingIndicator() {
@@ -53,10 +57,119 @@ function removeTypingIndicator() {
   if (el) el.remove();
 }
 
-function addMessage(text, sender) {
+function showError(title, detail, showRetry = false) {
+  removeTypingIndicator();
   const div = document.createElement("div");
-  div.className = `message ${sender}`;
-  div.innerHTML = `<p>${text}</p>`;
+  div.className = "message bot warning";
+
+  const content = document.createElement("div");
+  content.className = "message-content";
+
+  let html = `<p><strong>${escapeHtml(title)}</strong></p>`;
+  if (detail) html += `<p style="margin-top:4px">${escapeHtml(detail)}</p>`;
+
+  if (showRetry) {
+    html += `<button class="retry-btn" onclick="retryLastMessage()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="23 4 23 10 17 10"/>
+        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+      </svg>
+      Reintentar
+    </button>`;
+  }
+
+  content.innerHTML = html;
+  div.appendChild(content);
+
+  const time = document.createElement("span");
+  time.className = "message-time";
+  time.textContent = getTimestamp();
+  div.appendChild(time);
+
   messages.appendChild(div);
-  messages.scrollTop = messages.scrollHeight;
+  scrollToBottom();
 }
+
+let lastFailedMessage = "";
+
+async function sendMessage(text) {
+  const trimmed = text.trim();
+  if (!trimmed) return;
+
+  addMessage(trimmed, "user");
+
+  conversationHistory.push({ role: "user", content: trimmed });
+
+  sendBtn.disabled = true;
+  input.disabled = true;
+  showTypingIndicator();
+
+  lastFailedMessage = trimmed;
+
+  try {
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: trimmed, history: conversationHistory }),
+    });
+
+    removeTypingIndicator();
+
+    if (res.status === 429) {
+      const data = await res.json();
+      showError(
+        "Muchas solicitudes",
+        data.reply || "Espera un momento e intenta de nuevo.",
+        true
+      );
+      return;
+    }
+
+    if (res.status === 400) {
+      const data = await res.json();
+      showError("Mensaje inválido", data.reply || "Verifica tu mensaje e intenta de nuevo.");
+      return;
+    }
+
+    if (!res.ok) {
+      showError("Error del servidor", "Hubo un problema. Intenta de nuevo.", true);
+      return;
+    }
+
+    const data = await res.json();
+    addMessage(data.reply, "bot");
+    conversationHistory.push({ role: "assistant", content: data.reply });
+  } catch {
+    removeTypingIndicator();
+    showError("Error de conexión", "No se pudo conectar con el servidor. Revisa tu internet.", true);
+  } finally {
+    sendBtn.disabled = false;
+    input.disabled = false;
+    input.focus();
+  }
+}
+
+function retryLastMessage() {
+  const errorMessages = messages.querySelectorAll(".message.warning, .message.error");
+  errorMessages.forEach(el => el.remove());
+  if (lastFailedMessage) {
+    sendMessage(lastFailedMessage);
+  }
+}
+
+form.addEventListener("submit", (e) => {
+  e.preventDefault();
+  sendMessage(input.value);
+  input.value = "";
+});
+
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    form.dispatchEvent(new Event("submit"));
+  }
+});
+
+document.querySelectorAll("[data-localize]").forEach((el) => {
+  el.textContent = getTimestamp();
+});
