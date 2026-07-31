@@ -69,7 +69,7 @@ function showError(title, detail, showRetry = false) {
   if (detail) html += `<p style="margin-top:4px">${escapeHtml(detail)}</p>`;
 
   if (showRetry) {
-    html += `<button class="retry-btn" onclick="retryLastMessage()">
+    html += `<button class="retry-btn" data-retry="1">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <polyline points="23 4 23 10 17 10"/>
         <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
@@ -161,6 +161,11 @@ form.addEventListener("submit", (e) => {
   e.preventDefault();
   sendMessage(input.value);
   input.value = "";
+});
+
+messages.addEventListener("click", (e) => {
+  const btn = e.target.closest(".retry-btn");
+  if (btn) retryLastMessage();
 });
 
 input.addEventListener("keydown", (e) => {
