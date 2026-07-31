@@ -1,7 +1,7 @@
 # Chatbot Clínica Dental Sonrisa Sana
 
 [![CI](https://github.com/Hisantirness/chatbot-clinica-dental/actions/workflows/ci.yml/badge.svg)](https://github.com/Hisantirness/chatbot-clinica-dental/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-47%20local%20%2B%207%20integration-brightgreen)](#)
+[![Tests](https://img.shields.io/badge/tests-68%20local%20%2B%207%20integration-brightgreen)](#)
 [![Node](https://img.shields.io/badge/Node.js-20.x-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org)
 [![Express](https://img.shields.io/badge/Express-4-000000?logo=express&logoColor=white)](https://expressjs.com)
 [![SQLite](https://img.shields.io/badge/SQLite-sql.js-003B57?logo=sqlite&logoColor=white)](https://sql.js.org)
@@ -50,6 +50,7 @@ flowchart TD
         direction LR
         Groq["Groq API<br/>(Llama 3.3 70B)"]
         Tools["src/tools.js<br/>4 tools"]
+        Reminders["src/reminders.js<br/>job email 24h antes"]
         DB[("src/db.js · sql.js<br/>clinica.db<br/>(Volume /data)")]
     end
 
@@ -59,6 +60,8 @@ flowchart TD
     Routes -->|"/api/chat"| Groq
     Routes -->|"tool calls"| Tools
     Tools -->|"SQL"| DB
+    Reminders -->|"lee/marca citas"| DB
+    Reminders -->|"SMTP"| Email["Correo del paciente"]
     Groq -->|"tool schemas"| Tools
 ```
 
@@ -103,6 +106,9 @@ erDiagram
         TEXT servicio "NOT NULL"
         TEXT fecha "NOT NULL"
         TEXT hora "NOT NULL"
+        TEXT dentista "opcional"
+        TEXT email "opcional, para recordatorio"
+        INTEGER recordatorio_enviado "0/1"
         TEXT creado_en "DEFAULT datetime('now')"
     }
 ```
@@ -123,6 +129,7 @@ stateDiagram-v2
 |------------|---------|-----------------|
 | **Servidor HTTP** | `src/server.js` | Express, middleware de seguridad, rutas, auth admin, loop de tool-calling |
 | **Herramientas** | `src/tools.js` | Lógica de negocio: disponibilidad, reserva, consulta y cancelación de citas |
+| **Recordatorios** | `src/reminders.js` | Job que envía recordatorios por email 24h antes de la cita (no-op sin SMTP) |
 | **Base de datos** | `src/db.js` | Abre/guarda la BD SQLite (sql.js), crea tabla `citas` si no existe y migra columnas nuevas con `ensureColumn` (idempotente) |
 | **Contexto del LLM** | `src/faq-context.js` | System prompt + 14 FAQs de la clínica |
 | **Inicialización** | `src/init-db.js` | Crea la BD solo si no existe (corre en `npm start` y en Railway) |
@@ -150,6 +157,7 @@ Este proyecto no es un chatbot genérico: cada problema de producción real se r
 - **Bug de seguridad real encontrado y corregido** — La política CSP de Helmet bloqueaba los scripts inline del frontend. Se migró todo a archivos externos y `onclick` → `addEventListener`, manteniendo la protección CSP intacta.
 - **Tests idempotentes** — Los tests escribían en la DB real y fallaban en la segunda corrida. Se aisló la DB de pruebas en un archivo temporal por proceso (`test-setup.mjs`).
 - **Condición de carrera en reservas simultáneas** — sql.js mantiene la BD en memoria y no serializa escrituras por defecto. Se agregó un *write lock* (Promise-based) que envuelve el *check-then-insert* de las reservas y las cancelaciones, garantizando que dos reservas al mismo slot no puedan confirmarse a la vez.
+- **Recordatorios seguros sin configuración** — El job de recordatorios por email es un *no-op* cuando no hay SMTP configurado: no construye transport ni envía, solo loguea. Así la app funciona en producción (Railway) sin credenciales y queda lista para activarse con `.env`.
 
 ## Tech Stack
 
@@ -167,7 +175,7 @@ Este proyecto no es un chatbot genérico: cada problema de producción real se r
 | **LLM API** | Groq (Llama 3.3 70B, tier gratis, 14,400 req/día) |
 | **Base de datos** | SQLite via sql.js |
 | **Frontend** | HTML + CSS + JS vanilla (sin frameworks) |
-| **Testing** | Vitest (28 unit + 19 server + 7 integración) |
+| **Testing** | Vitest (34 unit + 23 server + 11 reminders + 7 integración) |
 | **CI/CD** | GitHub Actions + Railway |
 | **Seguridad** | Helmet, CORS, rate-limit, sanitización XSS, panel admin con token |
 
@@ -176,16 +184,24 @@ Este proyecto no es un chatbot genérico: cada problema de producción real se r
 ### Chatbot inteligente
 - Responde 14 FAQs de la clínica (horarios, servicios, precios, EPS, etc.)
 - Consulta disponibilidad de citas en tiempo real
-- Agenda citas recopilando todos los datos del paciente
+- Agenda citas recopilando todos los datos del paciente (correo opcional para recordatorio)
 - Consulta y cancela citas existentes por teléfono
+- Envía recordatorios automáticos por email 24h antes de cada cita
 - Tool calling loop con Groq (máximo 5 iteraciones)
 - Retry automático en rate-limit de Groq
 
 ### Gestión de citas
 - `consultar_disponibilidad` — horarios libres para una fecha
-- `reservar_cita` — agenda cita con nombre, cédula, teléfono, servicio y dentista preferido (opcional)
+- `reservar_cita` — agenda cita con nombre, cédula, teléfono, servicio, dentista preferido (opcional) y correo (opcional)
 - `consultar_mis_citas` — lista todas las citas de un paciente
 - `cancelar_cita` — cancela cita verificando propiedad
+
+### Recordatorios por email
+- Job automático (`setInterval`) configurable con `REMINDER_INTERVAL_MINUTES` (default: 30 min, `0` lo desactiva)
+- Envía recordatorio exactamente 24h antes de la cita, en zona horaria de Colombia (UTC-5)
+- Solo a citas con correo registrado y nunca reenvía (columna `recordatorio_enviado`)
+- **No-op seguro**: sin `SMTP_*` y `EMAIL_FROM` configurados, el job se omite y no rompe el servidor
+- Usa `nodemailer` (funciona con Gmail app password o cualquier proveedor SMTP)
 
 ### Seguridad
 - Helmet: HTTP headers seguros
@@ -228,6 +244,26 @@ La app se despliega automáticamente en **Railway** con cada push a `master` (au
 - **Volume** montado en `/data` para persistir la BD entre deploys
 - **Health check** en `/health` para monitoreo de Railway
 - **Inicialización** — Tanto el `Dockerfile` como `npm start` ejecutan `init-db.js` antes de levantar el servidor, creando la tabla `citas` si no existe (idempotente).
+
+### Recordatorios por email (configuración)
+
+El job se activa automáticamente al iniciar el servidor, pero **no envía nada hasta que configures SMTP** (no-op seguro). Pasos:
+
+1. Crea una **app password** en tu cuenta de Gmail (Google Account → Seguridad → Verificación en 2 pasos → Contraseñas de aplicaciones).
+2. Configura las variables de entorno:
+
+```
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=tu-correo@gmail.com
+SMTP_PASS=tu-app-password
+EMAIL_FROM=Sonrisa Sana <tu-correo@gmail.com>
+REMINDER_INTERVAL_MINUTES=30
+```
+
+3. Despliega (o reinicia el servidor). Cada 30 minutos el job busca citas de pacientes **con correo** cuya cita esté exactamente a 24 horas, envía el recordatorio y marca la cita para no reenviarla.
+
+Sin estas variables, el job solo registra en logs que SMTP no está configurado.
 
 ## Privacidad
 
@@ -312,13 +348,15 @@ chatbot-clinica-dental/
 │   ├── screenshot.png          # Captura del chat
 │   └── screenshot-admin.png    # Captura del panel admin
 ├── src/
-│   ├── server.js               # Express server
+│   ├── server.js               # Express server + job de recordatorios
 │   ├── tools.js                # 4 herramientas del chatbot
 │   ├── db.js                   # Conexión SQLite
 │   ├── faq-context.js          # 14 FAQs + system prompt
 │   ├── init-db.js              # Script de inicialización
-│   ├── tools.test.mjs          # 32 tests unitarios
-│   ├── server.test.mjs         # 22 tests del servidor Express
+│   ├── reminders.js            # Recordatorios por email (24h antes)
+│   ├── tools.test.mjs          # 34 tests unitarios
+│   ├── server.test.mjs         # 23 tests del servidor Express
+│   ├── reminders.test.mjs      # 11 tests del job de recordatorios
 │   ├── test-setup.mjs          # DB temporal aislada para tests
 │   └── integration.test.mjs    # 7 tests de integración
 ├── vitest.config.mjs
@@ -353,8 +391,8 @@ Abrir `http://localhost:3000`
 |---------|-------------|
 | `npm start` | Inicia servidor en puerto 3000 |
 | `npm run dev` | Modo watch (recarga automática) |
-| `npm test` | 54 tests locales (32 unit + 22 server) — CI |
-| `npm run test:server` | 22 tests del servidor Express |
+| `npm test` | 68 tests locales (34 unit + 23 server + 11 reminders) — CI |
+| `npm run test:server` | 23 tests del servidor Express |
 | `npm run test:integration` | 7 tests contra Railway (usa la URL por defecto) |
 | `npm run test:all` | Todos los tests (locales + integración) |
 | `npm run init-db` | Crea BD solo si no existe |
@@ -369,6 +407,10 @@ Abrir `http://localhost:3000`
 | `PORT` | No | Puerto (default: 3000) |
 | `DB_PATH` | No | Ruta de la BD (en Railway: `/data/clinica.db`) |
 | `CORS_ORIGINS` | No | Orígenes permitidos separados por coma (default: dominio de producción en Railway) |
+| `SMTP_HOST` / `SMTP_PORT` | No | Servidor SMTP para recordatorios (default puerto: 587) |
+| `SMTP_USER` / `SMTP_PASS` | No | Credenciales SMTP (en Gmail, usar app password) |
+| `EMAIL_FROM` | No | Remitente de los correos de recordatorio |
+| `REMINDER_INTERVAL_MINUTES` | No | Intervalo del job en minutos (default: 30, `0` lo desactiva) |
 
 *Se recomienda configurarlo. Si no está, los endpoints de citas quedan sin protección.
 

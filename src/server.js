@@ -10,10 +10,12 @@ const crypto = require("crypto");
 const { systemPrompt } = require("./faq-context");
 const { toolSchemas, availableFunctions, withWriteLock } = require("./tools");
 const { getDB, saveDB } = require("./db");
+const { correrRecordatorios } = require("./reminders");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
+const REMINDER_INTERVAL_MINUTES = Number(process.env.REMINDER_INTERVAL_MINUTES || 30);
 
 const runningDirectly = require.main === module;
 
@@ -190,9 +192,9 @@ app.get("/api/admin/citas/export", requireAdmin, async (_req, res) => {
     }
     stmt.free();
 
-    const header = "id,nombre,cedula,telefono,servicio,fecha,hora,dentista,creado_en";
+    const header = "id,nombre,cedula,telefono,email,servicio,fecha,hora,dentista,creado_en";
     const csv = rows.map((r) =>
-      [r.id, r.nombre, r.cedula, r.telefono, r.servicio, r.fecha, r.hora, r.dentista || "", r.creado_en].map(csvEscape).join(",")
+      [r.id, r.nombre, r.cedula, r.telefono, r.email || "", r.servicio, r.fecha, r.hora, r.dentista || "", r.creado_en].map(csvEscape).join(",")
     ).join("\n");
 
     auditLog("EXPORTAR_CITAS", { count: rows.length });
@@ -439,8 +441,25 @@ app.post("/api/chat", async (req, res) => {
 });
 
 if (runningDirectly) {
-  app.listen(PORT, () => {
+  app.listen(PORT, async () => {
     log("log", `Servidor iniciado en http://localhost:${PORT}`);
+
+    if (REMINDER_INTERVAL_MINUTES > 0) {
+      const runReminders = async () => {
+        try {
+          const db = await getDB();
+          await correrRecordatorios(db);
+        } catch (err) {
+          log("error", "Error en job de recordatorios", { error: err.message });
+        }
+      };
+
+      await runReminders();
+      setInterval(runReminders, REMINDER_INTERVAL_MINUTES * 60 * 1000);
+      log("log", `Job de recordatorios activado (cada ${REMINDER_INTERVAL_MINUTES} min)`);
+    } else {
+      log("log", "Job de recordatorios desactivado (REMINDER_INTERVAL_MINUTES=0)");
+    }
   });
 }
 

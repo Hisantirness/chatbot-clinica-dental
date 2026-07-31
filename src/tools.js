@@ -95,7 +95,7 @@ async function consultar_disponibilidad({ fecha } = {}) {
   }
 }
 
-async function reservar_cita({ nombre, cedula, telefono, servicio, fecha, hora, dentista }) {
+async function reservar_cita({ nombre, cedula, telefono, servicio, fecha, hora, dentista, email }) {
   return withWriteLock(async () => {
   try {
     if (!/^3\d{9}$/.test(telefono)) {
@@ -131,8 +131,8 @@ async function reservar_cita({ nombre, cedula, telefono, servicio, fecha, hora, 
     }
 
     db.run(
-      "INSERT INTO citas (nombre, cedula, telefono, servicio, fecha, hora, dentista) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      [nombre, cedula, telefono, servicio, fecha, hora, dentista || null]
+      "INSERT INTO citas (nombre, cedula, telefono, servicio, fecha, hora, dentista, email) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      [nombre, cedula, telefono, servicio, fecha, hora, dentista || null, email || null]
     );
 
     const idResult = db.exec("SELECT last_insert_rowid()");
@@ -155,7 +155,7 @@ async function consultar_mis_citas({ telefono }) {
   try {
     const db = await getDB();
     const stmt = db.prepare(
-      "SELECT id, nombre, cedula, servicio, fecha, hora, dentista, creado_en FROM citas WHERE telefono = ? ORDER BY fecha, hora"
+      "SELECT id, nombre, cedula, servicio, fecha, hora, dentista, email, creado_en FROM citas WHERE telefono = ? ORDER BY fecha, hora"
     );
     stmt.bind([telefono]);
 
@@ -265,6 +265,11 @@ const toolSchemas = [
             type: "string",
             description:
               "Nombre del dentista preferido (opcional). Si el paciente no lo menciona, omitelo.",
+          },
+          email: {
+            type: "string",
+            description:
+              "Correo electronico del paciente (opcional) para enviarle el recordatorio de la cita. Solo incluyelo si el paciente lo proporciona voluntariamente.",
           },
         },
         required: ["nombre", "cedula", "telefono", "servicio", "fecha", "hora"],

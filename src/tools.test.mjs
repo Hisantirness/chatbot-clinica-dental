@@ -137,6 +137,47 @@ describe("reservar_cita", () => {
     expect(cita.dentista).toBeNull();
   });
 
+  it("guarda el email opcional cuando se especifica", async () => {
+    const result = JSON.parse(
+      await t.reservar_cita({
+        nombre: "Con Email",
+        cedula: "456456456",
+        telefono: "3004445555",
+        servicio: "implante",
+        fecha: "2026-08-13",
+        hora: "09:30",
+        email: "paciente@ejemplo.com",
+      })
+    );
+    expect(result.exito).toBe(true);
+
+    const citas = JSON.parse(await t.consultar_mis_citas({ telefono: "3004445555" }));
+    expect(citas.citas.length).toBeGreaterThan(0);
+    const cita = citas.citas.find((c) => c.nombre === "Con Email");
+    expect(cita).toBeDefined();
+    expect(cita.email).toBe("paciente@ejemplo.com");
+  });
+
+  it("guarda email NULL cuando no se especifica", async () => {
+    const result = JSON.parse(
+      await t.reservar_cita({
+        nombre: "Sin Email",
+        cedula: "789789789",
+        telefono: "3007778888",
+        servicio: "valoracion",
+        fecha: "2026-08-14",
+        hora: "10:15",
+      })
+    );
+    expect(result.exito).toBe(true);
+
+    const citas = JSON.parse(await t.consultar_mis_citas({ telefono: "3007778888" }));
+    expect(citas.citas.length).toBeGreaterThan(0);
+    const cita = citas.citas.find((c) => c.nombre === "Sin Email");
+    expect(cita).toBeDefined();
+    expect(cita.email).toBeNull();
+  });
+
   it("rechaza telefono invalido", async () => {
     const result = JSON.parse(
       await t.reservar_cita({
@@ -403,6 +444,36 @@ describe("migracion de base de datos existente", () => {
     const cols = db.exec("PRAGMA table_info(citas)");
     const dentistas = cols[0].values.filter((row) => row[1] === "dentista");
     expect(dentistas.length).toBe(1);
+
+    db.close();
+    fs.rmSync(legacyDb, { force: true });
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it("agrega las columnas email y recordatorio_enviado a una tabla creada sin ellas", async () => {
+    const legacyDb = path.join(os.tmpdir(), `clinica-legacy3-${process.pid}-${Date.now()}.db`);
+    fs.rmSync(legacyDb, { force: true });
+    await crearBDLegacy(legacyDb, true);
+
+    vi.stubEnv("DB_PATH", legacyDb);
+    vi.resetModules();
+    const { getDB } = await import("./db.js");
+    const db = await getDB();
+
+    const cols = db.exec("PRAGMA table_info(citas)");
+    const nombres = cols[0].values.map((row) => row[1]);
+    expect(nombres).toContain("email");
+    expect(nombres).toContain("recordatorio_enviado");
+
+    db.run(
+      "INSERT INTO citas (nombre, cedula, telefono, servicio, fecha, hora, dentista, email) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      ["Con Correo", "2", "3002223344", "limpieza", "2026-08-21", "11:00", null, "paciente@ejemplo.com"]
+    );
+
+    const insert = db.exec("SELECT email, recordatorio_enviado FROM citas");
+    expect(insert[0].values[0][0]).toBe("paciente@ejemplo.com");
+    expect(insert[0].values[0][1]).toBe(0);
 
     db.close();
     fs.rmSync(legacyDb, { force: true });

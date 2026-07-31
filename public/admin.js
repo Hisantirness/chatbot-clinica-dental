@@ -64,6 +64,7 @@ async function loadCitas() {
       <td><strong>${esc(c.nombre)}</strong></td>
       <td>${esc(c.cedula)}</td>
       <td>${esc(c.telefono)}</td>
+      <td>${esc(c.email || "")}</td>
       <td>${esc(c.servicio)}</td>
       <td>${esc(c.dentista || "")}</td>
       <td>${esc(c.fecha)}</td>

@@ -13,7 +13,7 @@ const faqs = [
   { q: "Promociones", a: "20% de descuento en la primera valoración para pacientes nuevos." },
   { q: "WhatsApp", a: "+57 300 000 0000 (disponible en horario de atención)" },
   { q: "Extracción de cordales", a: "Sí, la extracción de cordales (muelas del juicio) está incluida en el servicio de extracciones. El precio se determina en la valoración inicial." },
-  { q: "Tratamiento de datos personales", a: "Tus datos (nombre, cédula y teléfono) se usan únicamente para gestionar tu cita. Al agendar aceptas el tratamiento de tus datos conforme a la Ley 1581 de 2012 (Habeas Data) de Colombia. Puedes solicitar la corrección o eliminación de tus datos cuando lo necesites." },
+  { q: "Tratamiento de datos personales", a: "Tus datos (nombre, cédula, teléfono y, si lo proporcionas, correo electrónico) se usan únicamente para gestionar tu cita y enviarte su recordatorio. Al agendar aceptas el tratamiento de tus datos conforme a la Ley 1581 de 2012 (Habeas Data) de Colombia. Puedes solicitar la corrección o eliminación de tus datos cuando lo necesites." },
 ];
 
 const systemPrompt = `Eres un asistente virtual de la Clínica Dental Sonrisa Sana, ubicada en Avenida 6 Norte, Cali.
@@ -55,10 +55,11 @@ Tienes herramientas para consultar disponibilidad y reservar citas reales en la 
    - Fecha preferida
    - Hora preferida (debe ser un horario que hayas confirmado libre con consultar_disponibilidad)
    - Dentista preferido (OPCIONAL). Solo pregunta si el paciente lo menciona o si el flujo lo amerita; si no lo sabe o no le interesa, agéndalo sin dentista.
+   - Correo electrónico (OPCIONAL). No lo preguntes directamente: si el paciente ofrece su correo de forma voluntaria, regístralo para enviarle el recordatorio de su cita. Si no lo menciona, agenda la cita sin correo.
 
-6. Confirma todos los datos con el paciente antes de reservar: "Voy a agendar tu cita para [fecha] a las [hora], servicio de [servicio], a nombre de [nombre], cédula [cédula], teléfono [¿correcto?]." Si el paciente pidió un dentista específico, inclúyelo en la confirmación.
+6. Confirma todos los datos con el paciente antes de reservar: "Voy a agendar tu cita para [fecha] a las [hora], servicio de [servicio], a nombre de [nombre], cédula [cédula], teléfono [¿correcto?]." Si el paciente pidió un dentista específico o dio un correo, inclúyelos en la confirmación.
 
-7. Antes de reservar, informa brevemente el aviso de privacidad: "Al agendar, tus datos (nombre, cédula y teléfono) quedarán registrados únicamente para gestionar tu cita, conforme a la Ley 1581 de 2012 (Habeas Data). ¿Aceptas?" Espera confirmación explícita del paciente antes de continuar.
+7. Antes de reservar, informa brevemente el aviso de privacidad: "Al agendar, tus datos (nombre, cédula, teléfono y, si lo das, correo) quedarán registrados únicamente para gestionar tu cita y enviarte su recordatorio, conforme a la Ley 1581 de 2012 (Habeas Data). ¿Aceptas?" Espera confirmación explícita del paciente antes de continuar.
 
 8. SOLO después de que el paciente confirme los datos Y acepte el aviso de privacidad, llama reservar_cita. Antes de reservar, SIEMPRE llama consultar_disponibilidad para verificar que la hora sigue libre. NUNCA confirmes como agendada una cita que no hayas reservado exitosamente con la herramienta.
 

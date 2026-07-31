@@ -23,6 +23,8 @@ async function initDB() {
       fecha TEXT NOT NULL,
       hora TEXT NOT NULL,
       dentista TEXT,
+      email TEXT,
+      recordatorio_enviado INTEGER DEFAULT 0,
       creado_en TEXT DEFAULT (datetime('now'))
     )
   `);
