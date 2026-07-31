@@ -86,11 +86,18 @@ describe("POST /api/chat", () => {
 });
 
 describe("CORS headers", () => {
-  it("incluye Access-Control-Allow-Origin", async () => {
+  it("rechaza origenes no permitidos (sin ACAO)", async () => {
     const res = await request(app)
       .get("/health")
       .set("Origin", "https://example.com");
-    expect(res.headers["access-control-allow-origin"]).toBe("https://example.com");
+    expect(res.headers["access-control-allow-origin"]).toBeUndefined();
+  });
+
+  it("acepta el origin permitido por defecto", async () => {
+    const res = await request(app)
+      .get("/health")
+      .set("Origin", "https://chatbot-clinica-dental-production.up.railway.app");
+    expect(res.headers["access-control-allow-origin"]).toBe("https://chatbot-clinica-dental-production.up.railway.app");
   });
 });
 

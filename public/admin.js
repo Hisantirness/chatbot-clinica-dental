@@ -80,14 +80,19 @@ function esc(s) {
 
 async function cancelarCita(id) {
   if (!confirm(`Cancelar cita #${id}?`)) return;
-  const res = await fetch(`/api/citas/${id}?token=${token}`, { method: "DELETE" });
+  const res = await fetch(`/api/citas/${id}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
   const data = await res.json();
   if (data.exito) { showToast(data.mensaje, "success"); loadCitas(); }
   else { showToast(data.error, "error"); }
 }
 
 async function exportCSV() {
-  const res = await fetch(`/api/admin/citas/export?token=${token}`);
+  const res = await fetch(`/api/admin/citas/export`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
   if (!res.ok) { showToast("Error al exportar", "error"); return; }
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);

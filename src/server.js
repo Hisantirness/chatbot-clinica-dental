@@ -120,8 +120,36 @@ function csvEscape(value) {
 
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" },
+  contentSecurityPolicy: {
+    directives: {
+      "default-src": ["'self'"],
+      "base-uri": ["'self'"],
+      "font-src": ["'self'", "https:", "data:"],
+      "form-action": ["'self'"],
+      "frame-ancestors": ["'self'"],
+      "img-src": ["'self'", "data:"],
+      "object-src": ["'none'"],
+      "script-src": ["'self'"],
+      "script-src-attr": ["'none'"],
+      "style-src": ["'self'", "https:"],
+      "upgrade-insecure-requests": [],
+    },
+  },
 }));
-app.use(cors({ origin: true }));
+app.use((_req, res, next) => {
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()");
+  next();
+});
+const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || "https://chatbot-clinica-dental-production.up.railway.app")
+  .split(",")
+  .map((o) => o.trim());
+app.use(cors({
+  origin(origin, cb) {
+    if (!origin) return cb(null, true);
+    if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+    return cb(null, false);
+  },
+}));
 app.use(express.json({ limit: "10kb" }));
 app.use(requestLogger);
 app.use(express.static(path.join(__dirname, "..", "public")));

@@ -66,7 +66,7 @@ function showError(title, detail, showRetry = false) {
   content.className = "message-content";
 
   let html = `<p><strong>${escapeHtml(title)}</strong></p>`;
-  if (detail) html += `<p style="margin-top:4px">${escapeHtml(detail)}</p>`;
+  if (detail) html += `<p class="detail-text">${escapeHtml(detail)}</p>`;
 
   if (showRetry) {
     html += `<button class="retry-btn" data-retry="1">
