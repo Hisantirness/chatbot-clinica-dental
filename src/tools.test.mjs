@@ -1,4 +1,7 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, vi } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 let t;
 
@@ -237,5 +240,62 @@ describe("cancelar_cita", () => {
     const result = JSON.parse(await t.cancelar_cita({ cita_id: 999, telefono: "0000000000" }));
     expect(result.exito).toBe(false);
     expect(result.error).toContain("no encontrada");
+  });
+});
+
+describe("concurrencia de reservas (write lock)", () => {
+  it("solo una de dos reservas simultaneas al mismo slot tiene exito", async () => {
+    const slot = "2026-11-09"; 
+    const hora = "08:00";
+
+    const [r1, r2] = await Promise.all([
+      t.reservar_cita({
+        nombre: "Concurrente Uno",
+        cedula: "111111",
+        telefono: "3111111111",
+        servicio: "limpieza",
+        fecha: slot,
+        hora,
+      }),
+      t.reservar_cita({
+        nombre: "Concurrente Dos",
+        cedula: "222222",
+        telefono: "3222222222",
+        servicio: "valoracion",
+        fecha: slot,
+        hora,
+      }),
+    ]);
+
+    const a = JSON.parse(r1);
+    const b = JSON.parse(r2);
+
+    expect(a.exito !== b.exito).toBe(true);
+    const ganador = a.exito ? a : b;
+    const perdedor = a.exito ? b : a;
+    expect(ganador.exito).toBe(true);
+    expect(perdedor.exito).toBe(false);
+    expect(perdedor.error).toContain("ocupado");
+  });
+});
+
+describe("primer arranque con base de datos vacia", () => {
+  it("crea la tabla citas cuando el archivo no existe", async () => {
+    const emptyDb = path.join(os.tmpdir(), `clinica-empty-${process.pid}-${Date.now()}.db`);
+    fs.rmSync(emptyDb, { force: true });
+
+    vi.stubEnv("DB_PATH", emptyDb);
+    vi.resetModules();
+    const { getDB } = await import("./db.js");
+    const db = await getDB();
+
+    const result = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='citas'");
+    expect(result.length).toBeGreaterThan(0);
+    expect(result[0].values[0][0]).toBe("citas");
+
+    db.close();
+    fs.rmSync(emptyDb, { force: true });
+    vi.unstubAllEnvs();
+    vi.resetModules();
   });
 });

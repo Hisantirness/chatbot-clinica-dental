@@ -8,7 +8,7 @@ const helmet = require("helmet");
 const cors = require("cors");
 const crypto = require("crypto");
 const { systemPrompt } = require("./faq-context");
-const { toolSchemas, availableFunctions } = require("./tools");
+const { toolSchemas, availableFunctions, withWriteLock } = require("./tools");
 const { getDB, saveDB } = require("./db");
 
 const app = express();
@@ -91,7 +91,7 @@ function sleep(ms) {
 }
 
 function requireAdmin(req, res, next) {
-  const token = req.headers["authorization"]?.replace("Bearer ", "") || req.query.token;
+  const token = req.headers["authorization"]?.replace("Bearer ", "");
   if (!ADMIN_TOKEN) return next();
   if (!token) return res.status(401).json({ error: "No autorizado. Token requerido." });
   try {
@@ -244,6 +244,7 @@ app.delete("/api/citas/:id", requireAdmin, async (req, res) => {
   }
 
   try {
+    await withWriteLock(async () => {
     const db = await getDB();
 
     let cita;
@@ -272,7 +273,8 @@ app.delete("/api/citas/:id", requireAdmin, async (req, res) => {
     saveDB();
 
     auditLog("CANCELAR_CITA", { id, telefono: telefono || "admin", cita: cita.fecha });
-    res.json({ exito: true, mensaje: `Cita del ${cita.fecha} a las ${cita.hora} cancelada.` });
+    return res.json({ exito: true, mensaje: `Cita del ${cita.fecha} a las ${cita.hora} cancelada.` });
+    });
   } catch (err) {
     log("error", "Error al cancelar cita", { error: err.message });
     res.status(500).json({ error: "Error al cancelar cita." });

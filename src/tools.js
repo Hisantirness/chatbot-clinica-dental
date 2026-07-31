@@ -1,5 +1,13 @@
 const { getDB, saveDB } = require("./db");
 
+let writeLock = Promise.resolve();
+
+function withWriteLock(fn) {
+  const run = writeLock.then(fn, fn);
+  writeLock = run.catch(() => {});
+  return run;
+}
+
 function getFechaHoy() {
   const now = new Date();
   const colombia = new Intl.DateTimeFormat("en-CA", {
@@ -88,6 +96,7 @@ async function consultar_disponibilidad({ fecha } = {}) {
 }
 
 async function reservar_cita({ nombre, cedula, telefono, servicio, fecha, hora }) {
+  return withWriteLock(async () => {
   try {
     if (!/^3\d{9}$/.test(telefono)) {
       return JSON.stringify({
@@ -139,6 +148,7 @@ async function reservar_cita({ nombre, cedula, telefono, servicio, fecha, hora }
   } catch (err) {
     return JSON.stringify({ exito: false, error: err.message });
   }
+  });
 }
 
 async function consultar_mis_citas({ telefono }) {
@@ -166,6 +176,7 @@ async function consultar_mis_citas({ telefono }) {
 }
 
 async function cancelar_cita({ cita_id, telefono }) {
+  return withWriteLock(async () => {
   try {
     const db = await getDB();
 
@@ -192,6 +203,7 @@ async function cancelar_cita({ cita_id, telefono }) {
   } catch (err) {
     return JSON.stringify({ exito: false, error: err.message });
   }
+  });
 }
 
 const toolSchemas = [
@@ -306,6 +318,7 @@ const availableFunctions = {
 module.exports = {
   toolSchemas,
   availableFunctions,
+  withWriteLock,
   generarFranjas,
   normalizeFecha,
   consultar_disponibilidad,

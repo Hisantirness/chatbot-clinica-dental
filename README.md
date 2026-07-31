@@ -1,7 +1,7 @@
 # Chatbot Clínica Dental Sonrisa Sana
 
 [![CI](https://github.com/Hisantirness/chatbot-clinica-dental/actions/workflows/ci.yml/badge.svg)](https://github.com/Hisantirness/chatbot-clinica-dental/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-43%20local%20%2B%207%20integration-brightgreen)](#)
+[![Tests](https://img.shields.io/badge/tests-47%20local%20%2B%207%20integration-brightgreen)](#)
 [![Node](https://img.shields.io/badge/Node.js-20.x-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org)
 [![Express](https://img.shields.io/badge/Express-4-000000?logo=express&logoColor=white)](https://expressjs.com)
 [![SQLite](https://img.shields.io/badge/SQLite-sql.js-003B57?logo=sqlite&logoColor=white)](https://sql.js.org)
@@ -149,6 +149,7 @@ Este proyecto no es un chatbot genérico: cada problema de producción real se r
 - **Cuota diaria de la API gratuita** — Groq free tier tiene límite de 14,400 req/día. El sistema detecta `429`/cuota agotada y responde al usuario con un mensaje amable en vez de fallar.
 - **Bug de seguridad real encontrado y corregido** — La política CSP de Helmet bloqueaba los scripts inline del frontend. Se migró todo a archivos externos y `onclick` → `addEventListener`, manteniendo la protección CSP intacta.
 - **Tests idempotentes** — Los tests escribían en la DB real y fallaban en la segunda corrida. Se aisló la DB de pruebas en un archivo temporal por proceso (`test-setup.mjs`).
+- **Condición de carrera en reservas simultáneas** — sql.js mantiene la BD en memoria y no serializa escrituras por defecto. Se agregó un *write lock* (Promise-based) que envuelve el *check-then-insert* de las reservas y las cancelaciones, garantizando que dos reservas al mismo slot no puedan confirmarse a la vez.
 
 ## Tech Stack
 
@@ -166,7 +167,7 @@ Este proyecto no es un chatbot genérico: cada problema de producción real se r
 | **LLM API** | Groq (Llama 3.3 70B, tier gratis, 14,400 req/día) |
 | **Base de datos** | SQLite via sql.js |
 | **Frontend** | HTML + CSS + JS vanilla (sin frameworks) |
-| **Testing** | Vitest (26 unit + 17 server + 7 integración) |
+| **Testing** | Vitest (28 unit + 19 server + 7 integración) |
 | **CI/CD** | GitHub Actions + Railway |
 | **Seguridad** | Helmet, CORS, rate-limit, sanitización XSS, panel admin con token |
 
@@ -200,6 +201,7 @@ Este proyecto no es un chatbot genérico: cada problema de producción real se r
 - Token admin siempre por header `Authorization: Bearer`, nunca en la URL
 - Export CSV sanitizado contra fórmula injection
 - Audit logging de todas las operaciones administrativas
+- Aviso de privacidad y consentimiento conforme a la Ley 1581 de 2012 (Habeas Data) al agendar citas
 
 ### Panel Admin
 Panel web protegido por token para gestionar citas:
@@ -225,6 +227,23 @@ La app se despliega automáticamente en **Railway** con cada push a `master` (au
 - URL: https://chatbot-clinica-dental-production.up.railway.app
 - **Volume** montado en `/data` para persistir la BD entre deploys
 - **Health check** en `/health` para monitoreo de Railway
+
+## Privacidad
+
+El chatbot recopila datos personales de los pacientes (nombre, cédula y teléfono) exclusivamente para gestionar sus citas. Este tratamiento cumple con la **Ley 1581 de 2012 (Habeas Data)** de Colombia:
+
+- **Finalidad** — Los datos se usan solo para registrar, consultar y cancelar citas; no se comparten con terceros.
+- **Consentimiento** — Al agendar una cita, el chatbot informa el aviso de privacidad y solicita la aceptación explícita del paciente antes de confirmar.
+- **Derechos** — El paciente puede solicitar la corrección o eliminación de sus datos contactando a la clínica.
+- **Almacenamiento** — Los datos residen en la base de datos SQLite del servidor (Volume de Railway), sin servicios de análisis ni tracking.
+
+## Respaldo de datos
+
+La base de datos vive en un solo archivo SQLite (`clinica.db`) dentro del Volume de Railway:
+
+- **Copia manual** — El panel admin expone `GET /api/admin/citas/export` para descargar un CSV de todas las citas (respaldo de recuperación).
+- **Snapshot del Volume** — Railway permite crear copias del volumen montado en `/data` desde el panel de la app; se recomienda un snapshot periódico.
+- **Frecuencia sugerida** — Diaria si la clínica opera todos los días, o semanal para uso ligero.
 
 ## API
 
@@ -333,7 +352,7 @@ Abrir `http://localhost:3000`
 |---------|-------------|
 | `npm start` | Inicia servidor en puerto 3000 |
 | `npm run dev` | Modo watch (recarga automática) |
-| `npm test` | 43 tests locales (26 unit + 17 server) — CI |
+| `npm test` | 47 tests locales (28 unit + 19 server) — CI |
 | `npm run test:server` | 17 tests del servidor Express |
 | `npm run test:integration` | 7 tests contra Railway (usa la URL por defecto) |
 | `npm run test:all` | Todos los tests (locales + integración) |

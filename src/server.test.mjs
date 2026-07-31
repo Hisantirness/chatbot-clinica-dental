@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, vi } from "vitest";
 import request from "supertest";
 
 let app;
@@ -134,6 +134,32 @@ describe("GET /api/admin/citas", () => {
   it("rechaza sin token cuando ADMIN_TOKEN esta configurado", async () => {
     const res = await request(app).get("/api/admin/citas");
     expect([200, 401]).toContain(res.status);
+  });
+});
+
+describe("Seguridad del token admin", () => {
+  it("no acepta el token por query string cuando ADMIN_TOKEN esta configurado", async () => {
+    vi.stubEnv("ADMIN_TOKEN", "token-secreto-de-test");
+    vi.resetModules();
+    const mod = await import("../src/server.js");
+    const appUnderTest = mod.default;
+    const res = await request(appUnderTest).get("/api/admin/citas?token=token-secreto-de-test");
+    expect(res.status).toBe(401);
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it("acepta el token por header Authorization Bearer", async () => {
+    vi.stubEnv("ADMIN_TOKEN", "token-secreto-de-test");
+    vi.resetModules();
+    const mod = await import("../src/server.js");
+    const appUnderTest = mod.default;
+    const res = await request(appUnderTest)
+      .get("/api/admin/citas")
+      .set("Authorization", "Bearer token-secreto-de-test");
+    expect(res.status).toBe(200);
+    vi.unstubAllEnvs();
+    vi.resetModules();
   });
 });
 
