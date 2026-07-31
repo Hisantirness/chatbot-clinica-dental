@@ -1,11 +1,17 @@
+@baseUrl = https://chatbot-clinica-dental-production.up.railway.app
+@adminToken = TU-ADMIN-TOKEN-AQUI
+
 ### Health Check
-GET https://chatbot-clinica-dental-production.up.railway.app/health
+GET {{baseUrl}}/health
 
 ### Frontend
-GET https://chatbot-clinica-dental-production.up.railway.app/
+GET {{baseUrl}}/
+
+### Panel Admin (login por token)
+GET {{baseUrl}}/admin
 
 ### Chat - Mensaje simple
-POST https://chatbot-clinica-dental-production.up.railway.app/api/chat
+POST {{baseUrl}}/api/chat
 Content-Type: application/json
 
 {
@@ -14,7 +20,7 @@ Content-Type: application/json
 }
 
 ### Chat - Consultar disponibilidad
-POST https://chatbot-clinica-dental-production.up.railway.app/api/chat
+POST {{baseUrl}}/api/chat
 Content-Type: application/json
 
 {
@@ -22,8 +28,8 @@ Content-Type: application/json
   "history": []
 }
 
-### Chat - Mensaje muy largo (debe fallar)
-POST https://chatbot-clinica-dental-production.up.railway.app/api/chat
+### Chat - Mensaje muy largo (debe fallar con 400)
+POST {{baseUrl}}/api/chat
 Content-Type: application/json
 
 {
@@ -31,8 +37,22 @@ Content-Type: application/json
   "history": []
 }
 
-### Consultar citas por teléfono
-GET https://chatbot-clinica-dental-production.up.railway.app/api/citas?telefono=3001234567
+### Consultar citas por teléfono (requiere ADMIN_TOKEN)
+GET {{baseUrl}}/api/citas?telefono=3001234567
+Authorization: Bearer {{adminToken}}
 
-### Cancelar cita (reemplazar :id con un ID real)
-DELETE https://chatbot-clinica-dental-production.up.railway.app/api/citas/1
+### Cancelar cita propia (reemplazar :id con un ID real)
+DELETE {{baseUrl}}/api/citas/1?telefono=3001234567
+Authorization: Bearer {{adminToken}}
+
+### Cancelar cita como admin (reemplazar :id con un ID real)
+DELETE {{baseUrl}}/api/citas/1
+Authorization: Bearer {{adminToken}}
+
+### Admin - Listar todas las citas (requiere ADMIN_TOKEN)
+GET {{baseUrl}}/api/admin/citas
+Authorization: Bearer {{adminToken}}
+
+### Admin - Exportar citas a CSV (requiere ADMIN_TOKEN)
+GET {{baseUrl}}/api/admin/citas/export
+Authorization: Bearer {{adminToken}}

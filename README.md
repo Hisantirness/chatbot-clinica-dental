@@ -1,10 +1,11 @@
 # Chatbot Clínica Dental Sonrisa Sana
 
 [![CI](https://github.com/Hisantirness/chatbot-clinica-dental/actions/workflows/ci.yml/badge.svg)](https://github.com/Hisantirness/chatbot-clinica-dental/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-42%20local%2C%207%20integration-brightgreen)](#)
+[![Tests](https://img.shields.io/badge/tests-42%20local%20%2B%207%20integration-brightgreen)](#)
 [![Node](https://img.shields.io/badge/node-20.x-339933?logo=node.js)](https://nodejs.org)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Groq](https://img.shields.io/badge/Groq-Llama%203.3%2070B-orange)](#)
+[![Deploy](https://img.shields.io/badge/deploy-Railway-7b00ff?logo=railway)](#)
 
 Chatbot web inteligente de atención al cliente para clínica dental. Responde preguntas frecuentes, consulta disponibilidad y **reserva citas reales** en base de datos, todo mediante lenguaje natural.
 
@@ -15,9 +16,26 @@ Chatbot web inteligente de atención al cliente para clínica dental. Responde p
 La app está corriendo en producción:  
 👉 **[chatbot-clinica-dental-production.up.railway.app](https://chatbot-clinica-dental-production.up.railway.app)**
 
-## Screenshot
+## Screenshots
+
+Chat del paciente:
 
 ![Chatbot Screenshot](public/screenshot.png)
+
+Panel administrativo:
+
+![Panel Admin Screenshot](public/screenshot-admin.png)
+
+## Retos técnicos resueltos
+
+Este proyecto no es un chatbot genérico: cada problema de producción real se resolvió y quedó documentado.
+
+- **Tool calling multi-turno con LLM** — El modelo decide cuándo llamar `consultar_disponibilidad`, `reservar_cita`, `consultar_mis_citas` o `cancelar_cita`, con un loop de máximo 5 iteraciones y retry automático ante rate-limit de Groq (backoff progresivo).
+- **Zonas horarias en producción** — El servidor corría en UTC pero la clínica está en Colombia (UTC-5). `getFechaHoy()` usa `Intl.DateTimeFormat` con `America/Bogota` para que las fechas de citas sean correctas.
+- **Persistencia en entorno serverless** — Railway no persiste el filesystem entre deploys. La BD SQLite (sql.js) se guarda en un Volume montado en `/data` vía `DB_PATH`, y `init-db.js` respeta una BD existente.
+- **Cuota diaria de la API gratuita** — Groq free tier tiene límite de 14,400 req/día. El sistema detecta `429`/cuota agotada y responde al usuario con un mensaje amable en vez de fallar.
+- **Bug de seguridad real encontrado y corregido** — La política CSP de Helmet bloqueaba los scripts inline del frontend. Se migró todo a archivos externos y `onclick` → `addEventListener`, manteniendo la protección CSP intacta.
+- **Tests idempotentes** — Los tests escribían en la DB real y fallaban en la segunda corrida. Se aisló la DB de pruebas en un archivo temporal por proceso (`test-setup.mjs`).
 
 ## Tech Stack
 
@@ -77,6 +95,13 @@ Pipeline automatizado en cada push a `master`:
 ```
 npm ci → init-db → npm audit → lint → test → verify
 ```
+
+### Deployment
+La app se despliega automáticamente en **Railway** con cada push a `master` (auto-deploy):
+
+- URL: https://chatbot-clinica-dental-production.up.railway.app
+- **Volume** montado en `/data` para persistir la BD entre deploys
+- **Health check** en `/health` para monitoreo de Railway
 
 ## API
 
@@ -139,7 +164,9 @@ chatbot-clinica-dental/
 │   ├── style.css               # Estilos responsive
 │   ├── script.js               # Lógica frontend
 │   ├── admin.html              # Panel admin UI
-│   └── admin.js                # Lógica del panel admin
+│   ├── admin.js                # Lógica del panel admin
+│   ├── screenshot.png          # Captura del chat
+│   └── screenshot-admin.png    # Captura del panel admin
 ├── src/
 │   ├── server.js               # Express server
 │   ├── tools.js                # 4 herramientas del chatbot
@@ -184,7 +211,7 @@ Abrir `http://localhost:3000` 🚀
 | `npm run dev` | Modo watch (recarga automática) |
 | `npm test` | 42 tests locales (25 unit + 17 server) — CI |
 | `npm run test:server` | 17 tests del servidor Express |
-| `npm run test:integration` | 7 tests contra Railway (requiere `RAILWAY_URL`) |
+| `npm run test:integration` | 7 tests contra Railway (usa la URL por defecto) |
 | `npm run test:all` | Todos los tests (locales + integración) |
 | `npm run init-db` | Crea BD solo si no existe |
 | `npm run lint` | ESLint |
@@ -196,7 +223,6 @@ Abrir `http://localhost:3000` 🚀
 | `GROQ_API_KEY` | Sí | API key de Groq |
 | `ADMIN_TOKEN` | Sí* | Token para acceder al panel admin y API de citas |
 | `PORT` | No | Puerto (default: 3000) |
-| `RAILWAY_URL` | No | URL para tests de integración |
 | `DB_PATH` | No | Ruta de la BD (en Railway: `/data/clinica.db`) |
 
 *Se recomienda configurarlo. Si no está, los endpoints de citas quedan sin protección.
