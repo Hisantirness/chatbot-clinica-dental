@@ -12,6 +12,8 @@ const express = require("express");
 const path = require("path");
 const Groq = require("groq-sdk");
 const rateLimit = require("express-rate-limit");
+const helmet = require("helmet");
+const cors = require("cors");
 const { systemPrompt } = require("./faq-context");
 const { toolSchemas, availableFunctions } = require("./tools");
 const { getDB, saveDB } = require("./db");
@@ -27,9 +29,29 @@ const MAX_MESSAGE_LENGTH = 500;
 const MAX_HISTORY_LENGTH = 50;
 
 function log(level, msg, data) {
-  const ts = new Date().toISOString();
-  const extra = data ? ` ${JSON.stringify(data)}` : "";
-  console[level](`[${ts}] ${msg}${extra}`);
+  const entry = {
+    level,
+    msg,
+    timestamp: new Date().toISOString(),
+    ...(data && { data }),
+  };
+  if (level === "error") console.error(JSON.stringify(entry));
+  else console.log(JSON.stringify(entry));
+}
+
+function sanitize(str) {
+  if (typeof str !== "string") return str;
+  return str.replace(/[<>&"']/g, (c) => ({
+    "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;",
+  })[c]);
+}
+
+function requestLogger(req, _res, next) {
+  log("info", `${req.method} ${req.path}`, {
+    ip: req.ip,
+    ua: (req.headers["user-agent"] || "").slice(0, 60),
+  });
+  next();
 }
 
 const apiLimiter = rateLimit({
@@ -57,7 +79,12 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+}));
+app.use(cors({ origin: true }));
 app.use(express.json({ limit: "10kb" }));
+app.use(requestLogger);
 app.use(express.static(path.join(__dirname, "..", "public")));
 app.use("/api", apiLimiter);
 
@@ -127,13 +154,19 @@ app.post("/api/chat", async (req, res) => {
     });
   }
 
+  const safeMessage = sanitize(message);
+  const safeHistory = (history || []).map((m) => ({
+    ...m,
+    content: sanitize(m.content || ""),
+  }));
+
   if (Array.isArray(history) && history.length > MAX_HISTORY_LENGTH) {
     return res.status(400).json({
       reply: "La conversación es demasiado larga. Por favor inicia una nueva.",
     });
   }
 
-  log("log", "Chat request", { length: message.length });
+  log("info", "Chat request", { length: safeMessage.length });
 
   try {
     await getDB();
@@ -144,8 +177,8 @@ app.post("/api/chat", async (req, res) => {
 
   const messagesForGroq = [
     { role: "system", content: systemPrompt },
-    ...(history || []),
-    { role: "user", content: message },
+    ...safeHistory,
+    { role: "user", content: safeMessage },
   ];
 
   async function callGroqWithRetry(msgs) {
