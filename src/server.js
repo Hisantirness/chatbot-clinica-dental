@@ -295,16 +295,24 @@ app.post("/api/chat", async (req, res) => {
   }
 
   const safeMessage = sanitize(message);
-  const safeHistory = (history || []).map((m) => ({
-    ...m,
-    content: sanitize(m.content || ""),
-  }));
+  const allowedRoles = new Set(["user", "assistant"]);
 
-  if (Array.isArray(history) && history.length > MAX_HISTORY_LENGTH) {
+  if (history != null && !Array.isArray(history)) {
+    return res.status(400).json({ reply: "El historial debe ser un arreglo." });
+  }
+
+  if (history && history.length > MAX_HISTORY_LENGTH) {
     return res.status(400).json({
       reply: "La conversación es demasiado larga. Por favor inicia una nueva.",
     });
   }
+
+  const safeHistory = (history || [])
+    .filter((m) => m && allowedRoles.has(m.role))
+    .map((m) => ({
+      role: m.role,
+      content: sanitize(m.content || ""),
+    }));
 
   log("info", "Chat request", { length: safeMessage.length });
 

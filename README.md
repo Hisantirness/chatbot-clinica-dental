@@ -318,7 +318,7 @@ chatbot-clinica-dental/
 │   ├── faq-context.js          # 14 FAQs + system prompt
 │   ├── init-db.js              # Script de inicialización
 │   ├── tools.test.mjs          # 32 tests unitarios
-│   ├── server.test.mjs         # 19 tests del servidor Express
+│   ├── server.test.mjs         # 22 tests del servidor Express
 │   ├── test-setup.mjs          # DB temporal aislada para tests
 │   └── integration.test.mjs    # 7 tests de integración
 ├── vitest.config.mjs
@@ -353,8 +353,8 @@ Abrir `http://localhost:3000`
 |---------|-------------|
 | `npm start` | Inicia servidor en puerto 3000 |
 | `npm run dev` | Modo watch (recarga automática) |
-| `npm test` | 51 tests locales (32 unit + 19 server) — CI |
-| `npm run test:server` | 19 tests del servidor Express |
+| `npm test` | 54 tests locales (32 unit + 22 server) — CI |
+| `npm run test:server` | 22 tests del servidor Express |
 | `npm run test:integration` | 7 tests contra Railway (usa la URL por defecto) |
 | `npm run test:all` | Todos los tests (locales + integración) |
 | `npm run init-db` | Crea BD solo si no existe |
