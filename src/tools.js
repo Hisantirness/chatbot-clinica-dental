@@ -2,10 +2,13 @@ const { getDB, saveDB } = require("./db");
 
 function getFechaHoy() {
   const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  const colombia = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Bogota",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+  return colombia;
 }
 
 function generarFranjas(fecha) {
@@ -228,7 +231,7 @@ const toolSchemas = [
           servicio: {
             type: "string",
             description:
-              "Servicio dental a agendar (limpieza, blanqueamiento, ortodoncia, extraccion, resina, implante, valoracion)",
+              "Servicio dental a agendar (limpieza, blanqueamiento, ortodoncia, extraccion (incluye cordales/muelas del juicio), resina, implante, valoracion)",
           },
           fecha: {
             type: "string",
