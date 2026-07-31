@@ -5,6 +5,11 @@ const path = require("path");
 const DB_PATH = path.join(__dirname, "..", "clinica.db");
 
 async function initDB() {
+  if (fs.existsSync(DB_PATH)) {
+    console.log("Base de datos ya existe en:", DB_PATH);
+    return;
+  }
+
   const SQL = await initSqlJs();
   const db = new SQL.Database();
 

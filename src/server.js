@@ -6,14 +6,21 @@ const Groq = require("groq-sdk");
 const rateLimit = require("express-rate-limit");
 const helmet = require("helmet");
 const cors = require("cors");
+const crypto = require("crypto");
 const { systemPrompt } = require("./faq-context");
 const { toolSchemas, availableFunctions } = require("./tools");
 const { getDB, saveDB } = require("./db");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
 
 const runningDirectly = require.main === module;
+
+if (runningDirectly && !ADMIN_TOKEN) {
+  console.warn("ADVERTENCIA: ADMIN_TOKEN no configurado. Los endpoints de citas no estan protegidos.");
+  console.warn("Configuralo en .env: ADMIN_TOKEN=tu-token-secreto");
+}
 
 if (runningDirectly && !process.env.GROQ_API_KEY) {
   console.error("ERROR: GROQ_API_KEY no está configurada.");
@@ -83,6 +90,28 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function requireAdmin(req, res, next) {
+  const token = req.headers["authorization"]?.replace("Bearer ", "") || req.query.token;
+  if (!ADMIN_TOKEN) return next();
+  if (!token) return res.status(401).json({ error: "No autorizado. Token requerido." });
+  try {
+    if (!crypto.timingSafeEqual(Buffer.from(token), Buffer.from(ADMIN_TOKEN))) {
+      return res.status(401).json({ error: "No autorizado. Token invalido." });
+    }
+  } catch {
+    return res.status(401).json({ error: "No autorizado. Token invalido." });
+  }
+  next();
+}
+
+function auditLog(action, details) {
+  log("info", `[AUDIT] ${action}`, details);
+}
+
+function isValidPhone(phone) {
+  return /^3\d{9}$/.test(phone);
+}
+
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" },
 }));
@@ -96,10 +125,61 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-app.get("/api/citas", async (req, res) => {
+app.get("/admin", (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "public", "admin.html"));
+});
+
+app.get("/api/admin/citas", requireAdmin, async (_req, res) => {
+  try {
+    const db = await getDB();
+    const stmt = db.prepare("SELECT * FROM citas ORDER BY fecha, hora");
+    const citas = [];
+    while (stmt.step()) {
+      citas.push(stmt.getAsObject());
+    }
+    stmt.free();
+    auditLog("LISTAR_TODAS_CITAS", { count: citas.length });
+    res.json({ citas });
+  } catch (err) {
+    log("error", "Error al listar citas", { error: err.message });
+    res.status(500).json({ error: "Error al listar citas." });
+  }
+});
+
+app.get("/api/admin/citas/export", requireAdmin, async (_req, res) => {
+  try {
+    const db = await getDB();
+    const stmt = db.prepare("SELECT * FROM citas ORDER BY fecha, hora");
+    const rows = [];
+    while (stmt.step()) {
+      rows.push(stmt.getAsObject());
+    }
+    stmt.free();
+
+    const header = "id,nombre,cedula,telefono,servicio,fecha,hora,creado_en";
+    const csv = rows.map((r) =>
+      `${r.id},"${r.nombre}","${r.cedula}","${r.telefono}","${r.servicio}","${r.fecha}","${r.hora}","${r.creado_en}"`
+    ).join("\n");
+
+    auditLog("EXPORTAR_CITAS", { count: rows.length });
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", `attachment; filename="citas-${new Date().toISOString().slice(0, 10)}.csv"`);
+    res.send(`${header}\n${csv}`);
+  } catch (err) {
+    log("error", "Error al exportar citas", { error: err.message });
+    res.status(500).json({ error: "Error al exportar citas." });
+  }
+});
+
+app.get("/api/citas", requireAdmin, async (req, res) => {
   const { telefono } = req.query;
+
   if (!telefono) {
     return res.status(400).json({ error: "Se requiere el parametro telefono." });
+  }
+
+  if (!isValidPhone(telefono)) {
+    return res.status(400).json({ error: "Formato de telefono invalido. Debe ser 3XXXXXXXXX (10 digitos)." });
   }
 
   try {
@@ -113,6 +193,7 @@ app.get("/api/citas", async (req, res) => {
     }
     stmt.free();
 
+    auditLog("CONSULTAR_CITAS", { telefono, count: citas.length });
     res.json({ citas });
   } catch (err) {
     log("error", "Error al consultar citas", { error: err.message });
@@ -120,25 +201,44 @@ app.get("/api/citas", async (req, res) => {
   }
 });
 
-app.delete("/api/citas/:id", async (req, res) => {
+app.delete("/api/citas/:id", requireAdmin, async (req, res) => {
   const { id } = req.params;
+  const { telefono } = req.query;
+
+  if (!/^\d+$/.test(id)) {
+    return res.status(400).json({ error: "ID de cita invalido." });
+  }
 
   try {
     const db = await getDB();
 
-    const check = db.prepare("SELECT id FROM citas WHERE id = ?");
-    check.bind([id]);
-    const existe = check.step();
-    check.free();
+    let cita;
+    if (telefono) {
+      const check = db.prepare("SELECT id, nombre, fecha, hora, servicio FROM citas WHERE id = ? AND telefono = ?");
+      check.bind([id, telefono]);
+      const existe = check.step();
+      cita = existe ? check.getAsObject() : null;
+      check.free();
+    } else {
+      const check = db.prepare("SELECT id, nombre, fecha, hora, servicio FROM citas WHERE id = ?");
+      check.bind([id]);
+      const existe = check.step();
+      cita = existe ? check.getAsObject() : null;
+      check.free();
+    }
 
-    if (!existe) {
-      return res.status(404).json({ error: "Cita no encontrada." });
+    if (!cita) {
+      const msgs = telefono
+        ? "Cita no encontrada para ese telefono."
+        : "Cita no encontrada.";
+      return res.status(404).json({ error: msgs });
     }
 
     db.run("DELETE FROM citas WHERE id = ?", [id]);
     saveDB();
 
-    res.json({ exito: true, mensaje: `Cita ${id} cancelada exitosamente.` });
+    auditLog("CANCELAR_CITA", { id, telefono: telefono || "admin", cita: cita.fecha });
+    res.json({ exito: true, mensaje: `Cita del ${cita.fecha} a las ${cita.hora} cancelada.` });
   } catch (err) {
     log("error", "Error al cancelar cita", { error: err.message });
     res.status(500).json({ error: "Error al cancelar cita." });

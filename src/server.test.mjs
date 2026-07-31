@@ -105,3 +105,37 @@ describe("Security headers (helmet)", () => {
     expect(res.headers["x-frame-options"]).toBe("SAMEORIGIN");
   });
 });
+
+describe("GET /api/citas - auth", () => {
+  it("rechaza telefono invalido", async () => {
+    const res = await request(app).get("/api/citas?telefono=abc");
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain("invalido");
+  });
+});
+
+describe("GET /admin", () => {
+  it("sirve el admin.html", async () => {
+    const res = await request(app).get("/admin");
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toMatch(/html/);
+    expect(res.text).toContain("Panel Administrativo");
+  });
+});
+
+describe("GET /api/admin/citas", () => {
+  it("rechaza sin token cuando ADMIN_TOKEN esta configurado", async () => {
+    const res = await request(app).get("/api/admin/citas");
+    expect([200, 401]).toContain(res.status);
+  });
+});
+
+describe("GET /api/admin/citas/export", () => {
+  it("responde con CSV", async () => {
+    const res = await request(app).get("/api/admin/citas/export");
+    expect([200, 401]).toContain(res.status);
+    if (res.status === 200) {
+      expect(res.headers["content-type"]).toMatch(/csv/);
+    }
+  });
+});

@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Panel Admin - Sonrisa Sana</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --primary: #0c4a6e; --primary-light: #0369a1; --bg: #f1f5f9;
+      --surface: #ffffff; --text: #0f172a; --text-secondary: #475569;
+      --border: #e2e8f0; --success: #22c55e; --danger: #ef4444; --radius: 12px;
+    }
+    body {
+      font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text);
+      min-height: 100dvh; -webkit-font-smoothing: antialiased;
+    }
+    .header {
+      background: linear-gradient(135deg, #082f49, var(--primary));
+      color: white; padding: 16px 24px; display: flex; align-items: center;
+      justify-content: space-between;
+    }
+    .header h1 { font-size: 1.2rem; font-weight: 600; }
+    .header-actions { display: flex; gap: 8px; align-items: center; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+    .login-box {
+      max-width: 400px; margin: 80px auto; background: var(--surface);
+      border-radius: var(--radius); padding: 32px; box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    }
+    .login-box h2 { margin-bottom: 20px; font-size: 1.1rem; }
+    .login-box label { display: block; font-size: 0.85rem; margin-bottom: 6px; font-weight: 500; }
+    .login-box input {
+      width: 100%; padding: 10px 14px; border: 1.5px solid var(--border);
+      border-radius: 8px; font-size: 0.9rem; font-family: inherit; margin-bottom: 16px;
+      outline: none;
+    }
+    .login-box input:focus { border-color: var(--primary-light); }
+    .btn {
+      padding: 9px 18px; border: none; border-radius: 8px; font-size: 0.85rem;
+      font-family: inherit; font-weight: 500; cursor: pointer; transition: all 0.15s;
+    }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-light); }
+    .btn-danger { background: var(--danger); color: white; }
+    .btn-danger:hover { opacity: 0.9; }
+    .btn-success { background: var(--success); color: white; }
+    .btn-success:hover { opacity: 0.9; }
+    .btn-sm { padding: 5px 12px; font-size: 0.78rem; }
+    .btn-outline { background: transparent; border: 1.5px solid var(--border); color: var(--text-secondary); }
+    .btn-outline:hover { border-color: var(--primary); color: var(--primary); }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .stat-card {
+      background: var(--surface); border-radius: var(--radius); padding: 16px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    }
+    .stat-card .value { font-size: 1.8rem; font-weight: 700; color: var(--primary); }
+    .stat-card .label { font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px; }
+    .table-container {
+      background: var(--surface); border-radius: var(--radius); overflow: hidden;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th { background: #f8fafc; text-align: left; padding: 12px 14px; font-weight: 600; color: var(--text-secondary); border-bottom: 2px solid var(--border); }
+    td { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+    tr:hover td { background: #f8fafc; }
+    .empty { text-align: center; padding: 40px; color: var(--text-secondary); }
+    .toast {
+      position: fixed; bottom: 20px; right: 20px; padding: 12px 20px;
+      border-radius: 8px; color: white; font-size: 0.85rem; font-weight: 500;
+      opacity: 0; transition: opacity 0.3s; z-index: 100;
+    }
+    .toast.show { opacity: 1; }
+    .toast.success { background: var(--success); }
+    .toast.error { background: var(--danger); }
+    .hidden { display: none !important; }
+    @media (max-width: 600px) {
+      .container { padding: 12px; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      table { font-size: 0.78rem; }
+      th, td { padding: 8px 10px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Panel Administrativo - Sonrisa Sana</h1>
+    <div class="header-actions" id="header-actions">
+      <button class="btn btn-outline btn-sm hidden" id="exportBtn" onclick="exportCSV()">Exportar CSV</button>
+      <button class="btn btn-danger btn-sm hidden" id="logoutBtn" onclick="logout()">Cerrar sesion</button>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="login-box" id="loginBox">
+      <h2>Acceder al panel</h2>
+      <label for="tokenInput">Token de administrador</label>
+      <input type="password" id="tokenInput" placeholder="Ingresa el token..." autocomplete="off">
+      <button class="btn btn-primary" onclick="login()" style="width:100%">Ingresar</button>
+    </div>
+
+    <div id="dashboard" class="hidden">
+      <div class="stats">
+        <div class="stat-card"><div class="value" id="totalCitas">0</div><div class="label">Total citas</div></div>
+        <div class="stat-card"><div class="value" id="proximasCitas">0</div><div class="label">Proximas</div></div>
+        <div class="stat-card"><div class="value" id="hoyCitas">0</div><div class="label">Hoy</div></div>
+      </div>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Nombre</th>
+              <th>Cedula</th>
+              <th>Telefono</th>
+              <th>Servicio</th>
+              <th>Fecha</th>
+              <th>Hora</th>
+              <th>Accion</th>
+            </tr>
+          </thead>
+          <tbody id="citasBody"></tbody>
+        </table>
+        <div class="empty hidden" id="emptyState">No hay citas registradas.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    let token = localStorage.getItem("admin_token");
+
+    function showToast(msg, type) {
+      const t = document.getElementById("toast");
+      t.textContent = msg; t.className = `toast ${type} show`;
+      setTimeout(() => t.classList.remove("show"), 3000);
+    }
+
+    function login() {
+      token = document.getElementById("tokenInput").value.trim();
+      if (!token) return showToast("Ingresa un token", "error");
+      localStorage.setItem("admin_token", token);
+      loadCitas();
+    }
+
+    function logout() {
+      token = null; localStorage.removeItem("admin_token");
+      document.getElementById("loginBox").classList.remove("hidden");
+      document.getElementById("dashboard").classList.add("hidden");
+      document.getElementById("exportBtn").classList.add("hidden");
+      document.getElementById("logoutBtn").classList.add("hidden");
+    }
+
+    async function apiFetch(url) {
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.status === 401) { logout(); showToast("Token invalido", "error"); return null; }
+      if (!res.ok) { showToast("Error del servidor", "error"); return null; }
+      return res.json();
+    }
+
+    async function loadCitas() {
+      const data = await apiFetch("/api/admin/citas");
+      if (!data) return;
+
+      document.getElementById("loginBox").classList.add("hidden");
+      document.getElementById("dashboard").classList.remove("hidden");
+      document.getElementById("exportBtn").classList.remove("hidden");
+      document.getElementById("logoutBtn").classList.remove("hidden");
+
+      const citas = data.citas;
+      document.getElementById("totalCitas").textContent = citas.length;
+
+      const hoy = new Date().toISOString().slice(0, 10);
+      const proximas = citas.filter(c => c.fecha >= hoy);
+      const hoyCount = citas.filter(c => c.fecha === hoy).length;
+      document.getElementById("proximasCitas").textContent = proximas.length;
+      document.getElementById("hoyCitas").textContent = hoyCount;
+
+      const tbody = document.getElementById("citasBody");
+      const empty = document.getElementById("emptyState");
+
+      if (citas.length === 0) {
+        tbody.innerHTML = "";
+        empty.classList.remove("hidden");
+        return;
+      }
+      empty.classList.add("hidden");
+
+      tbody.innerHTML = citas.map(c => `
+        <tr>
+          <td>${c.id}</td>
+          <td><strong>${esc(c.nombre)}</strong></td>
+          <td>${esc(c.cedula)}</td>
+          <td>${esc(c.telefono)}</td>
+          <td>${esc(c.servicio)}</td>
+          <td>${esc(c.fecha)}</td>
+          <td>${esc(c.hora)}</td>
+          <td><button class="btn btn-danger btn-sm" onclick="cancelarCita(${c.id})">Cancelar</button></td>
+        </tr>
+      `).join("");
+    }
+
+    function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+
+    async function cancelarCita(id) {
+      if (!confirm(`Cancelar cita #${id}?`)) return;
+      const res = await fetch(`/api/citas/${id}?token=${token}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.exito) { showToast(data.mensaje, "success"); loadCitas(); }
+      else { showToast(data.error, "error"); }
+    }
+
+    async function exportCSV() {
+      const res = await fetch(`/api/admin/citas/export?token=${token}`);
+      if (!res.ok) { showToast("Error al exportar", "error"); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url;
+      a.download = "citas-sonrisa-sana.csv";
+      a.click(); URL.revokeObjectURL(url);
+      showToast("CSV exportado", "success");
+    }
+
+    if (token) { document.getElementById("tokenInput").value = token; loadCitas(); }
+  </script>
+</body>
+</html>
