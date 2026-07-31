@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Security audit
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+      - name: Run tests
+        run: npm test
+
+      - name: Check environment setup
+        run: |
+          if [ ! -f .env.example ]; then
+            echo "Missing .env.example"
+            exit 1
+          fi
+          echo "GROQ_API_KEY=test" > .env
+          node -e "
+            const pkg = require('./package.json');
+            const deps = Object.keys(pkg.dependencies).join(', ');
+            console.log('Dependencies:', deps);
+          "
