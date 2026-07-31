@@ -2,7 +2,7 @@ const initSqlJs = require("sql.js");
 const fs = require("fs");
 const path = require("path");
 
-const DB_PATH = path.join(__dirname, "..", "clinica.db");
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, "..", "clinica.db");
 
 async function initDB() {
   if (fs.existsSync(DB_PATH)) {
