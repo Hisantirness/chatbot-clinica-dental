@@ -227,8 +227,6 @@ Abrir `http://localhost:3000` 🚀
 
 *Se recomienda configurarlo. Si no está, los endpoints de citas quedan sin protección.
 
-> **Railway (production):** configura un Volume montado en `/data` y la variable `DB_PATH=/data/clinica.db` para que las citas persistan entre deploys.
-
 ## Licencia
 
 MIT © Santiago Villa
