@@ -138,4 +138,11 @@ describe("GET /api/admin/citas/export", () => {
       expect(res.headers["content-type"]).toMatch(/csv/);
     }
   });
+
+  it("escapa valores que empiezan con formula", () => {
+    const { csvEscape } = require("../src/server.js");
+    expect(csvEscape("=SUM(A1)")).toBe('"\'=SUM(A1)"');
+    expect(csvEscape("+cmd | calc")).toBe('"\'+cmd | calc"');
+    expect(csvEscape("Juan Pérez")).toBe('"Juan Pérez"');
+  });
 });

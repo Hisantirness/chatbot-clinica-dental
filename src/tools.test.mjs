@@ -93,6 +93,21 @@ describe("reservar_cita", () => {
     expect(result.mensaje).toContain("Test Paciente");
   });
 
+  it("rechaza telefono invalido", async () => {
+    const result = JSON.parse(
+      await t.reservar_cita({
+        nombre: "Test",
+        cedula: "111",
+        telefono: "222",
+        servicio: "resina",
+        fecha: "2026-08-10",
+        hora: "10:00",
+      })
+    );
+    expect(result.exito).toBe(false);
+    expect(result.error).toContain("telefono");
+  });
+
   it("rechaza horario ocupado", async () => {
     const result = JSON.parse(
       await t.reservar_cita({
@@ -113,7 +128,7 @@ describe("reservar_cita", () => {
       await t.reservar_cita({
         nombre: "Test",
         cedula: "111",
-        telefono: "222",
+        telefono: "3001112222",
         servicio: "resina",
         fecha: "2026-08-10",
         hora: "25:00",
@@ -128,7 +143,7 @@ describe("reservar_cita", () => {
       await t.reservar_cita({
         nombre: "Test",
         cedula: "111",
-        telefono: "222",
+        telefono: "3001112222",
         servicio: "valoracion",
         fecha: "2026-08-02",
         hora: "10:00",

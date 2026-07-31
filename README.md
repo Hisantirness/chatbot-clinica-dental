@@ -1,7 +1,7 @@
 # Chatbot Clínica Dental Sonrisa Sana
 
 [![CI](https://github.com/Hisantirness/chatbot-clinica-dental/actions/workflows/ci.yml/badge.svg)](https://github.com/Hisantirness/chatbot-clinica-dental/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-47%20passing-brightgreen)](#)
+[![Tests](https://img.shields.io/badge/tests-40%20local%2C%207%20integration-brightgreen)](#)
 [![Node](https://img.shields.io/badge/node-20.x-339933?logo=node.js)](https://nodejs.org)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Groq](https://img.shields.io/badge/Groq-Llama%203.3%2070B-orange)](#)
@@ -30,12 +30,12 @@ La app está corriendo en producción:
 | **Frontend** | HTML + CSS + JS vanilla (sin frameworks) |
 | **Testing** | Vitest (24 unit + 16 server + 7 integración) |
 | **CI/CD** | GitHub Actions + Railway |
-| **Seguridad** | Helmet, CORS, rate-limit, sanitización XSS |
+| **Seguridad** | Helmet, CORS, rate-limit, sanitización XSS, panel admin con token |
 
 ## Features
 
 ### Chatbot inteligente
-- Responde 13+ FAQs de la clínica (horarios, servicios, precios, EPS, etc.)
+- Responde 14 FAQs de la clínica (horarios, servicios, precios, EPS, etc.)
 - Consulta disponibilidad de citas en tiempo real
 - Agenda citas recopilando todos los datos del paciente
 - Consulta y cancela citas existentes por teléfono
@@ -56,6 +56,20 @@ La app está corriendo en producción:
 - Payload JSON limitado a 10 KB
 - Sanitización XSS en inputs
 - Logs JSON estructurados
+- `ADMIN_TOKEN` protege la API de citas y el panel administrativo
+- Export CSV sanitizado contra fórmula injection
+- Audit logging de todas las operaciones administrativas
+
+### Panel Admin
+Panel web protegido por token para gestionar citas:
+
+| Ruta | Descripción |
+|------|-------------|
+| `GET /admin` | Interfaz web del panel (login con token) |
+| `GET /api/admin/citas` | Lista todas las citas ordenadas (requiere token) |
+| `GET /api/admin/citas/export` | Descarga CSV de todas las citas (requiere token) |
+
+Accede en `/admin` e ingresa tu `ADMIN_TOKEN`. Desde el panel puedes ver estadísticas, listar citas, cancelarlas y exportar a CSV.
 
 ### CI/CD
 Pipeline automatizado en cada push a `master`:
@@ -90,7 +104,7 @@ Envía un mensaje al chatbot.
 ```
 
 ### `GET /api/citas?telefono=3001234567`
-Consulta citas por teléfono.
+Consulta citas por teléfono. Requiere `Authorization: Bearer <ADMIN_TOKEN>`.
 
 ```json
 {
@@ -109,7 +123,7 @@ Consulta citas por teléfono.
 ```
 
 ### `DELETE /api/citas/:id`
-Cancela una cita por ID.
+Cancela una cita por ID. Requiere `Authorization: Bearer <ADMIN_TOKEN>`. Para cancelar una cita propia, incluye el teléfono: `DELETE /api/citas/1?telefono=3001234567`.
 
 ```json
 { "exito": true, "mensaje": "Cita 1 cancelada exitosamente." }
@@ -123,12 +137,14 @@ chatbot-clinica-dental/
 ├── public/
 │   ├── index.html              # Chat UI
 │   ├── style.css               # Estilos responsive
-│   └── script.js               # Lógica frontend
+│   ├── script.js               # Lógica frontend
+│   ├── admin.html              # Panel admin UI
+│   └── admin.js                # Lógica del panel admin
 ├── src/
 │   ├── server.js               # Express server
 │   ├── tools.js                # 4 herramientas del chatbot
 │   ├── db.js                   # Conexión SQLite
-│   ├── faq-context.js          # 13 FAQs + system prompt
+│   ├── faq-context.js          # 14 FAQs + system prompt
 │   ├── init-db.js              # Script de inicialización
 │   ├── tools.test.mjs          # 24 tests unitarios
 │   ├── server.test.mjs         # 16 tests del servidor Express
@@ -164,9 +180,10 @@ Abrir `http://localhost:3000` 🚀
 |---------|-------------|
 | `npm start` | Inicia servidor en puerto 3000 |
 | `npm run dev` | Modo watch (recarga automática) |
-| `npm test` | 47 tests (24 unit + 16 server + 7 integración) |
+| `npm test` | 40 tests locales (24 unit + 16 server) — CI |
 | `npm run test:server` | 16 tests del servidor Express |
 | `npm run test:integration` | 7 tests contra Railway (requiere `RAILWAY_URL`) |
+| `npm run test:all` | Todos los tests (locales + integración) |
 | `npm run init-db` | Crea BD solo si no existe |
 | `npm run lint` | ESLint |
 
@@ -178,8 +195,11 @@ Abrir `http://localhost:3000` 🚀
 | `ADMIN_TOKEN` | Sí* | Token para acceder al panel admin y API de citas |
 | `PORT` | No | Puerto (default: 3000) |
 | `RAILWAY_URL` | No | URL para tests de integración |
+| `DB_PATH` | No | Ruta de la BD (en Railway: `/data/clinica.db`) |
 
 *Se recomienda configurarlo. Si no está, los endpoints de citas quedan sin protección.
+
+> **Railway (production):** configura un Volume montado en `/data` y la variable `DB_PATH=/data/clinica.db` para que las citas persistan entre deploys.
 
 ## Licencia
 

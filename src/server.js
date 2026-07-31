@@ -112,6 +112,12 @@ function isValidPhone(phone) {
   return /^3\d{9}$/.test(phone);
 }
 
+function csvEscape(value) {
+  let s = String(value == null ? "" : value);
+  if (/^[=+\-@]/.test(s)) s = `'${s}`;
+  return `"${s.replace(/"/g, '""')}"`;
+}
+
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" },
 }));
@@ -158,7 +164,7 @@ app.get("/api/admin/citas/export", requireAdmin, async (_req, res) => {
 
     const header = "id,nombre,cedula,telefono,servicio,fecha,hora,creado_en";
     const csv = rows.map((r) =>
-      `${r.id},"${r.nombre}","${r.cedula}","${r.telefono}","${r.servicio}","${r.fecha}","${r.hora}","${r.creado_en}"`
+      [r.id, r.nombre, r.cedula, r.telefono, r.servicio, r.fecha, r.hora, r.creado_en].map(csvEscape).join(",")
     ).join("\n");
 
     auditLog("EXPORTAR_CITAS", { count: rows.length });
@@ -401,3 +407,4 @@ if (runningDirectly) {
 }
 
 module.exports = app;
+module.exports.csvEscape = csvEscape;

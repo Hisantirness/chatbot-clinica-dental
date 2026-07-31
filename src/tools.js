@@ -89,6 +89,13 @@ async function consultar_disponibilidad({ fecha } = {}) {
 
 async function reservar_cita({ nombre, cedula, telefono, servicio, fecha, hora }) {
   try {
+    if (!/^3\d{9}$/.test(telefono)) {
+      return JSON.stringify({
+        exito: false,
+        error: "El numero de telefono debe tener formato colombiano: 3XXXXXXXXX (10 digitos, ejemplo: 3001234567).",
+      });
+    }
+
     fecha = normalizeFecha(fecha);
     const db = await getDB();
 

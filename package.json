@@ -7,10 +7,10 @@
     "start": "node src/init-db.js && node src/server.js",
     "dev": "node --watch src/server.js",
     "init-db": "node src/init-db.js",
-    "test": "vitest run",
+    "test": "vitest run src/tools.test.mjs src/server.test.mjs",
     "test:server": "vitest run src/server.test.mjs",
-    "test:integration": "RAILWAY_URL=https://chatbot-clinica-dental-production.up.railway.app vitest run src/integration.test.mjs",
-    "test:all": "npm test",
+    "test:integration": "vitest run src/integration.test.mjs",
+    "test:all": "npm run test && npm run test:integration",
     "lint": "eslint src/"
   },
   "dependencies": {
