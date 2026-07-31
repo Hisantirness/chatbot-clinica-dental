@@ -8,8 +8,9 @@
     "dev": "node --watch src/server.js",
     "init-db": "node src/init-db.js",
     "test": "vitest run",
-    "test:integration": "vitest run src/integration.test.mjs",
-    "test:all": "npm test && npm run test:integration",
+    "test:server": "vitest run src/server.test.mjs",
+    "test:integration": "RAILWAY_URL=https://chatbot-clinica-dental-production.up.railway.app vitest run src/integration.test.mjs",
+    "test:all": "npm test",
     "lint": "eslint src/"
   },
   "dependencies": {
@@ -23,6 +24,7 @@
   },
   "devDependencies": {
     "eslint": "^8.57.1",
+    "supertest": "^7.2.2",
     "vitest": "^3.2.7"
   }
 }

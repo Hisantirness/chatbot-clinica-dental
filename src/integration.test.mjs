@@ -31,7 +31,7 @@ describe("API endpoints", () => {
     expect(body.reply).toBeDefined();
     expect(typeof body.reply).toBe("string");
     expect(body.reply.length).toBeGreaterThan(0);
-  });
+  }, 30000);
 
   it("POST /api/chat rechaza mensaje vacio", async () => {
     const res = await fetch(`${BASE}/api/chat`, {
@@ -62,7 +62,7 @@ describe("API endpoints", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.reply).toBeDefined();
-  });
+  }, 30000);
 });
 
 describe("Frontend", () => {

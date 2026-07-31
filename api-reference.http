@@ -1,0 +1,38 @@
+### Health Check
+GET https://chatbot-clinica-dental-production.up.railway.app/health
+
+### Frontend
+GET https://chatbot-clinica-dental-production.up.railway.app/
+
+### Chat - Mensaje simple
+POST https://chatbot-clinica-dental-production.up.railway.app/api/chat
+Content-Type: application/json
+
+{
+  "message": "Hola, ¿qué servicios ofrecen?",
+  "history": []
+}
+
+### Chat - Consultar disponibilidad
+POST https://chatbot-clinica-dental-production.up.railway.app/api/chat
+Content-Type: application/json
+
+{
+  "message": "¿Qué horarios tienen mañana?",
+  "history": []
+}
+
+### Chat - Mensaje muy largo (debe fallar)
+POST https://chatbot-clinica-dental-production.up.railway.app/api/chat
+Content-Type: application/json
+
+{
+  "message": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "history": []
+}
+
+### Consultar citas por teléfono
+GET https://chatbot-clinica-dental-production.up.railway.app/api/citas?telefono=3001234567
+
+### Cancelar cita (reemplazar :id con un ID real)
+DELETE https://chatbot-clinica-dental-production.up.railway.app/api/citas/1

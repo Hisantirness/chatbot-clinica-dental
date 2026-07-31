@@ -2,3 +2,6 @@ node_modules/
 .env
 ajustes-dia3.txt
 clinica.db
+AGENTS.md
+brief.txt
+.opencode/

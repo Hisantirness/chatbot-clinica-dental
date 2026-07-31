@@ -1,7 +1,7 @@
 # Chatbot Clínica Dental Sonrisa Sana
 
 [![CI](https://github.com/Hisantirness/chatbot-clinica-dental/actions/workflows/ci.yml/badge.svg)](https://github.com/Hisantirness/chatbot-clinica-dental/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-31%20passing-brightgreen)](#)
+[![Tests](https://img.shields.io/badge/tests-43%20passing-brightgreen)](#)
 [![Node](https://img.shields.io/badge/node-20.x-339933?logo=node.js)](https://nodejs.org)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Groq](https://img.shields.io/badge/Groq-Llama%203.3%2070B-orange)](#)
@@ -17,27 +17,7 @@ La app está corriendo en producción:
 
 ## Screenshot
 
-```
-┌─────────────────────────────┐
-│  🦷 Sonrisa Sana    ● En línea │
-├─────────────────────────────┤
-│                             │
-│  ¡Hola! Bienvenido...       │
-│  19:32                      │
-│                             │
-│  ¿Qué horarios tienen       │
-│  mañana?               🧑  │
-│                         19:32│
-│                             │
-│  Tenemos disponibles:       │
-│  08:00, 08:45, 09:30...     │
-│  19:32                      │
-│                             │
-├─────────────────────────────┤
-│ [Escribe tu mensaje...] [➤] │
-│ Presiona Enter para enviar  │
-└─────────────────────────────┘
-```
+![Chatbot Screenshot](public/screenshot.png)
 
 ## Tech Stack
 
@@ -48,7 +28,7 @@ La app está corriendo en producción:
 | **LLM API** | Groq (Llama 3.3 70B, tier gratis, 14,400 req/día) |
 | **Base de datos** | SQLite via sql.js |
 | **Frontend** | HTML + CSS + JS vanilla (sin frameworks) |
-| **Testing** | Vitest (24 unit + 7 integración) |
+| **Testing** | Vitest (24 unit + 12 server + 7 integración) |
 | **CI/CD** | GitHub Actions + Railway |
 | **Seguridad** | Helmet, CORS, rate-limit, sanitización XSS |
 
@@ -151,6 +131,7 @@ chatbot-clinica-dental/
 │   ├── faq-context.js          # 13 FAQs + system prompt
 │   ├── init-db.js              # Script de inicialización
 │   ├── tools.test.mjs          # 24 tests unitarios
+│   ├── server.test.mjs         # 12 tests del servidor Express
 │   └── integration.test.mjs    # 7 tests de integración
 ├── Dockerfile
 ├── package.json
@@ -183,9 +164,9 @@ Abrir `http://localhost:3000` 🚀
 |---------|-------------|
 | `npm start` | Inicia servidor en puerto 3000 |
 | `npm run dev` | Modo watch (recarga automática) |
-| `npm test` | 24 tests unitarios |
+| `npm test` | 43 tests (24 unit + 12 server + 7 integración) |
 | `npm run test:integration` | 7 tests contra Railway (requiere `RAILWAY_URL`) |
-| `npm run test:all` | Unit + integración |
+| `npm run test:all` | Todos los tests |
 | `npm run init-db` | Crea BD desde cero |
 | `npm run lint` | ESLint |
 
