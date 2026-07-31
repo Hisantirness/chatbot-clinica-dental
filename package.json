@@ -7,7 +7,8 @@
     "start": "node src/init-db.js && node src/server.js",
     "dev": "node --watch src/server.js",
     "init-db": "node src/init-db.js",
-    "test": "vitest run"
+    "test": "vitest run",
+    "lint": "eslint src/"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
@@ -17,6 +18,7 @@
     "sql.js": "^1.14.1"
   },
   "devDependencies": {
+    "eslint": "^8.57.1",
     "vitest": "^3.2.7"
   }
 }

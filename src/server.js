@@ -61,6 +61,10 @@ app.use(express.json({ limit: "10kb" }));
 app.use(express.static(path.join(__dirname, "..", "public")));
 app.use("/api", apiLimiter);
 
+app.get("/health", (req, res) => {
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
 app.get("/api/citas", async (req, res) => {
   const { telefono } = req.query;
   if (!telefono) {
