@@ -45,7 +45,7 @@ function normalizeFecha(fecha) {
   return fecha;
 }
 
-async function consultar_disponibilidad(fecha) {
+async function consultar_disponibilidad({ fecha } = {}) {
   try {
     fecha = normalizeFecha(fecha);
     const db = await getDB();
@@ -131,6 +131,59 @@ async function reservar_cita({ nombre, cedula, telefono, servicio, fecha, hora }
   }
 }
 
+async function consultar_mis_citas({ telefono }) {
+  try {
+    const db = await getDB();
+    const stmt = db.prepare(
+      "SELECT id, nombre, cedula, servicio, fecha, hora, creado_en FROM citas WHERE telefono = ? ORDER BY fecha, hora"
+    );
+    stmt.bind([telefono]);
+
+    const citas = [];
+    while (stmt.step()) {
+      citas.push(stmt.getAsObject());
+    }
+    stmt.free();
+
+    if (citas.length === 0) {
+      return JSON.stringify({ citas: [], mensaje: "No tienes citas agendadas." });
+    }
+
+    return JSON.stringify({ citas });
+  } catch (err) {
+    return JSON.stringify({ error: err.message });
+  }
+}
+
+async function cancelar_cita({ cita_id, telefono }) {
+  try {
+    const db = await getDB();
+
+    const check = db.prepare("SELECT id, nombre, fecha, hora, servicio FROM citas WHERE id = ? AND telefono = ?");
+    check.bind([cita_id, telefono]);
+    const existe = check.step();
+    const cita = existe ? check.getAsObject() : null;
+    check.free();
+
+    if (!cita) {
+      return JSON.stringify({
+        exito: false,
+        error: "Cita no encontrada. Verifica el ID de la cita.",
+      });
+    }
+
+    db.run("DELETE FROM citas WHERE id = ?", [cita_id]);
+    saveDB();
+
+    return JSON.stringify({
+      exito: true,
+      mensaje: `Cita del ${cita.fecha} a las ${cita.hora} para ${cita.servicio} cancelada exitosamente.`,
+    });
+  } catch (err) {
+    return JSON.stringify({ exito: false, error: err.message });
+  }
+}
+
 const toolSchemas = [
   {
     type: "function",
@@ -191,11 +244,62 @@ const toolSchemas = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "consultar_mis_citas",
+      description:
+        "Consulta todas las citas agendadas de un paciente usando su numero de telefono. Devuelve la lista de citas con ID, fecha, hora, servicio y estado. El paciente debe proporcionar su numero de telefono.",
+      parameters: {
+        type: "object",
+        properties: {
+          telefono: {
+            type: "string",
+            description: "Numero de telefono del paciente para buscar sus citas",
+          },
+        },
+        required: ["telefono"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "cancelar_cita",
+      description:
+        "Cancela una cita existente. Requiere el ID de la cita y el numero de telefono del paciente como confirmacion. La cita debe pertenecer al paciente. No se puede cancelar una cita que no existe o que no pertenece al telefono proporcionado.",
+      parameters: {
+        type: "object",
+        properties: {
+          cita_id: {
+            type: "number",
+            description: "ID numerico de la cita a cancelar",
+          },
+          telefono: {
+            type: "string",
+            description: "Numero de telefono del paciente para verificar que la cita le pertenece",
+          },
+        },
+        required: ["cita_id", "telefono"],
+      },
+    },
+  },
 ];
 
 const availableFunctions = {
   consultar_disponibilidad,
   reservar_cita,
+  consultar_mis_citas,
+  cancelar_cita,
 };
 
-module.exports = { toolSchemas, availableFunctions, generarFranjas, normalizeFecha, consultar_disponibilidad, reservar_cita };
+module.exports = {
+  toolSchemas,
+  availableFunctions,
+  generarFranjas,
+  normalizeFecha,
+  consultar_disponibilidad,
+  reservar_cita,
+  consultar_mis_citas,
+  cancelar_cita,
+};

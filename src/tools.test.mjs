@@ -57,19 +57,19 @@ describe("normalizeFecha", () => {
 
 describe("consultar_disponibilidad", () => {
   it("devuelve horarios_libres para fecha valida entre semana", async () => {
-    const result = JSON.parse(await t.consultar_disponibilidad("2026-08-03"));
+    const result = JSON.parse(await t.consultar_disponibilidad({ fecha: "2026-08-03" }));
     expect(result.fecha).toBe("2026-08-03");
     expect(result.horarios_libres.length).toBeGreaterThan(0);
   });
 
   it("devuelve mensaje para domingo", async () => {
-    const result = JSON.parse(await t.consultar_disponibilidad("2026-08-02"));
+    const result = JSON.parse(await t.consultar_disponibilidad({ fecha: "2026-08-02" }));
     expect(result.horarios_libres).toEqual([]);
     expect(result.mensaje).toContain("domingo");
   });
 
   it("devuelve horarios en formato HH:MM", async () => {
-    const result = JSON.parse(await t.consultar_disponibilidad("2026-08-03"));
+    const result = JSON.parse(await t.consultar_disponibilidad({ fecha: "2026-08-03" }));
     for (const h of result.horarios_libres) {
       expect(h).toMatch(/^\d{2}:\d{2}$/);
     }
@@ -135,5 +135,38 @@ describe("reservar_cita", () => {
       })
     );
     expect(result.exito).toBe(false);
+  });
+});
+
+describe("consultar_mis_citas", () => {
+  it("devuelve citas para un telefono con reservas", async () => {
+    const result = JSON.parse(await t.consultar_mis_citas({ telefono: "3001234567" }));
+    expect(result.citas).toBeInstanceOf(Array);
+    expect(result.citas.length).toBeGreaterThan(0);
+    expect(result.citas[0]).toHaveProperty("id");
+    expect(result.citas[0]).toHaveProperty("servicio");
+  });
+
+  it("devuelve mensaje si no hay citas", async () => {
+    const result = JSON.parse(await t.consultar_mis_citas({ telefono: "0000000000" }));
+    expect(result.citas).toEqual([]);
+    expect(result.mensaje).toContain("No tienes citas");
+  });
+});
+
+describe("cancelar_cita", () => {
+  it("cancela una cita existente", async () => {
+    const misCitas = JSON.parse(await t.consultar_mis_citas({ telefono: "3001234567" }));
+    const citaId = misCitas.citas[0].id;
+
+    const result = JSON.parse(await t.cancelar_cita({ cita_id: citaId, telefono: "3001234567" }));
+    expect(result.exito).toBe(true);
+    expect(result.mensaje).toContain("cancelada");
+  });
+
+  it("rechaza cancelar cita de otro telefono", async () => {
+    const result = JSON.parse(await t.cancelar_cita({ cita_id: 999, telefono: "0000000000" }));
+    expect(result.exito).toBe(false);
+    expect(result.error).toContain("no encontrada");
   });
 });

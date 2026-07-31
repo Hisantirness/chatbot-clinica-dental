@@ -13,7 +13,7 @@ const path = require("path");
 const Groq = require("groq-sdk");
 const { systemPrompt } = require("./faq-context");
 const { toolSchemas, availableFunctions } = require("./tools");
-const { getDB } = require("./db");
+const { getDB, saveDB } = require("./db");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -42,6 +42,55 @@ function sleep(ms) {
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "..", "public")));
+
+app.get("/api/citas", async (req, res) => {
+  const { telefono } = req.query;
+  if (!telefono) {
+    return res.status(400).json({ error: "Se requiere el parametro telefono." });
+  }
+
+  try {
+    const db = await getDB();
+    const stmt = db.prepare("SELECT * FROM citas WHERE telefono = ? ORDER BY fecha, hora");
+    stmt.bind([telefono]);
+
+    const citas = [];
+    while (stmt.step()) {
+      citas.push(stmt.getAsObject());
+    }
+    stmt.free();
+
+    res.json({ citas });
+  } catch (err) {
+    console.error("Error al consultar citas:", err);
+    res.status(500).json({ error: "Error al consultar citas." });
+  }
+});
+
+app.delete("/api/citas/:id", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const db = await getDB();
+
+    const check = db.prepare("SELECT id FROM citas WHERE id = ?");
+    check.bind([id]);
+    const existe = check.step();
+    check.free();
+
+    if (!existe) {
+      return res.status(404).json({ error: "Cita no encontrada." });
+    }
+
+    db.run("DELETE FROM citas WHERE id = ?", [id]);
+    saveDB();
+
+    res.json({ exito: true, mensaje: `Cita ${id} cancelada exitosamente.` });
+  } catch (err) {
+    console.error("Error al cancelar cita:", err);
+    res.status(500).json({ error: "Error al cancelar cita." });
+  }
+});
 
 app.post("/api/chat", async (req, res) => {
   const { message, history } = req.body;
@@ -129,13 +178,7 @@ app.post("/api/chat", async (req, res) => {
 
         let functionResponse;
         try {
-          if (functionName === "consultar_disponibilidad") {
-            functionResponse = await functionToCall(functionArgs.fecha);
-          } else if (functionName === "reservar_cita") {
-            functionResponse = await functionToCall(functionArgs);
-          } else {
-            functionResponse = JSON.stringify({ error: `Funcion "${functionName}" no implementada.` });
-          }
+          functionResponse = await functionToCall(functionArgs);
         } catch (fnErr) {
           functionResponse = JSON.stringify({ error: fnErr.message });
         }
