@@ -8,6 +8,8 @@
     "dev": "node --watch src/server.js",
     "init-db": "node src/init-db.js",
     "test": "vitest run",
+    "test:integration": "vitest run src/integration.test.mjs",
+    "test:all": "npm test && npm run test:integration",
     "lint": "eslint src/"
   },
   "dependencies": {

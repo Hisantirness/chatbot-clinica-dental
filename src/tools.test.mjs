@@ -154,6 +154,60 @@ describe("consultar_mis_citas", () => {
   });
 });
 
+describe("normalizeFecha - mas casos", () => {
+  it("devuelve fecha de hoy si recibe string vacio", () => {
+    expect(t.normalizeFecha("")).toBe(t.normalizeFecha(null));
+  });
+
+  it("devuelve fecha de hoy si recibe undefined", () => {
+    const result = t.normalizeFecha(undefined);
+    expect(result).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});
+
+describe("reservar_cita - casos borde", () => {
+  it("reserva con caracteres especiales en nombre", async () => {
+    const result = JSON.parse(
+      await t.reservar_cita({
+        nombre: "Maria Jose O'Brien",
+        cedula: "ABC123",
+        telefono: "3009999999",
+        servicio: "ortodoncia",
+        fecha: "2026-08-11",
+        hora: "08:00",
+      })
+    );
+    expect(result.exito).toBe(true);
+    expect(result.cita_id).toBeDefined();
+  });
+
+  it("reserva todos los servicios disponibles", async () => {
+    const servicios = ["limpieza", "blanqueamiento", "ortodoncia", "extraccion", "resina", "implante", "valoracion"];
+    const horas = ["08:00", "08:45", "09:30", "10:15", "11:00", "11:45", "12:30"];
+    for (let i = 0; i < servicios.length; i++) {
+      const result = JSON.parse(
+        await t.reservar_cita({
+          nombre: "Test Servicios",
+          cedula: "000" + i,
+          telefono: "3008888" + String(i).padStart(3, "0"),
+          servicio: servicios[i],
+          fecha: "2026-08-17",
+          hora: horas[i],
+        })
+      );
+      expect(result.exito).toBe(true);
+    }
+  });
+});
+
+describe("consultar_mis_citas - mas casos", () => {
+  it("devuelve citas exactas para telefono", async () => {
+    const result = JSON.parse(await t.consultar_mis_citas({ telefono: "3009999999" }));
+    expect(result.citas.length).toBe(1);
+    expect(result.citas[0].servicio).toBe("ortodoncia");
+  });
+});
+
 describe("cancelar_cita", () => {
   it("cancela una cita existente", async () => {
     const misCitas = JSON.parse(await t.consultar_mis_citas({ telefono: "3001234567" }));
