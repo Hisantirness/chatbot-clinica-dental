@@ -11,6 +11,7 @@ const faqs = [
   { q: "Duración limpieza dental", a: "Entre 30 y 45 minutos." },
   { q: "Ubicación", a: "Avenida 6 Norte, Cali." },
   { q: "Promociones", a: "20% de descuento en la primera valoración para pacientes nuevos." },
+  { q: "WhatsApp", a: "+57 300 000 0000 (disponible en horario de atención)" },
 ];
 
 const systemPrompt = `Eres un asistente virtual de la Clínica Dental Sonrisa Sana, ubicada en Avenida 6 Norte, Cali.

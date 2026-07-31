@@ -22,6 +22,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Init database
+        run: npm run init-db
+
       - name: Security audit
         run: npm audit --audit-level=high
         continue-on-error: true
@@ -29,15 +32,25 @@ jobs:
       - name: Run tests
         run: npm test
 
-      - name: Check environment setup
+      - name: Verify environment setup
         run: |
           if [ ! -f .env.example ]; then
             echo "Missing .env.example"
             exit 1
           fi
+          if [ ! -f README.md ]; then
+            echo "Missing README.md"
+            exit 1
+          fi
           echo "GROQ_API_KEY=test" > .env
           node -e "
             const pkg = require('./package.json');
-            const deps = Object.keys(pkg.dependencies).join(', ');
-            console.log('Dependencies:', deps);
+            const required = ['start', 'dev', 'init-db', 'test'];
+            const missing = required.filter(s => !pkg.scripts[s]);
+            if (missing.length > 0) {
+              console.error('Missing scripts:', missing.join(', '));
+              process.exit(1);
+            }
+            console.log('All required scripts present');
+            console.log('Dependencies:', Object.keys(pkg.dependencies).join(', '));
           "

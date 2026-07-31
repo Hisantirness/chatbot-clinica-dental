@@ -11,6 +11,7 @@ if (!process.env.GROQ_API_KEY) {
 const express = require("express");
 const path = require("path");
 const Groq = require("groq-sdk");
+const rateLimit = require("express-rate-limit");
 const { systemPrompt } = require("./faq-context");
 const { toolSchemas, availableFunctions } = require("./tools");
 const { getDB, saveDB } = require("./db");
@@ -22,6 +23,22 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 5000;
+const MAX_MESSAGE_LENGTH = 500;
+const MAX_HISTORY_LENGTH = 50;
+
+function log(level, msg, data) {
+  const ts = new Date().toISOString();
+  const extra = data ? ` ${JSON.stringify(data)}` : "";
+  console[level](`[${ts}] ${msg}${extra}`);
+}
+
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  message: { reply: "Has excedido el límite de solicitudes. Espera un momento e intenta de nuevo." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 function isRateLimitError(err) {
   return (
@@ -40,8 +57,9 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-app.use(express.json());
+app.use(express.json({ limit: "10kb" }));
 app.use(express.static(path.join(__dirname, "..", "public")));
+app.use("/api", apiLimiter);
 
 app.get("/api/citas", async (req, res) => {
   const { telefono } = req.query;
@@ -62,7 +80,7 @@ app.get("/api/citas", async (req, res) => {
 
     res.json({ citas });
   } catch (err) {
-    console.error("Error al consultar citas:", err);
+    log("error", "Error al consultar citas", { error: err.message });
     res.status(500).json({ error: "Error al consultar citas." });
   }
 });
@@ -87,21 +105,36 @@ app.delete("/api/citas/:id", async (req, res) => {
 
     res.json({ exito: true, mensaje: `Cita ${id} cancelada exitosamente.` });
   } catch (err) {
-    console.error("Error al cancelar cita:", err);
+    log("error", "Error al cancelar cita", { error: err.message });
     res.status(500).json({ error: "Error al cancelar cita." });
   }
 });
 
 app.post("/api/chat", async (req, res) => {
   const { message, history } = req.body;
-  if (!message) {
+
+  if (!message || typeof message !== "string") {
     return res.status(400).json({ reply: "Por favor escribe un mensaje." });
   }
+
+  if (message.length > MAX_MESSAGE_LENGTH) {
+    return res.status(400).json({
+      reply: `El mensaje no puede tener más de ${MAX_MESSAGE_LENGTH} caracteres.`,
+    });
+  }
+
+  if (Array.isArray(history) && history.length > MAX_HISTORY_LENGTH) {
+    return res.status(400).json({
+      reply: "La conversación es demasiado larga. Por favor inicia una nueva.",
+    });
+  }
+
+  log("log", "Chat request", { length: message.length });
 
   try {
     await getDB();
   } catch (err) {
-    console.error("Error initializing DB:", err);
+    log("error", "Error initializing DB", { error: err.message });
     return res.status(500).json({ reply: "Error al inicializar la base de datos." });
   }
 
@@ -127,7 +160,7 @@ app.post("/api/chat", async (req, res) => {
           if (isDailyQuotaError(err)) {
             throw err;
           }
-          console.warn(`Rate limit hit (attempt ${attempt + 1}/${MAX_RETRIES + 1}), retrying in ${RETRY_DELAY_MS}ms...`);
+          log("warn", "Rate limit hit, retrying", { attempt: attempt + 1, maxRetries: MAX_RETRIES + 1 });
           await sleep(RETRY_DELAY_MS * (attempt + 1));
           continue;
         }
@@ -199,7 +232,7 @@ app.post("/api/chat", async (req, res) => {
       "No pude generar una respuesta.";
     res.json({ reply });
   } catch (error) {
-    console.error("Error calling Groq API:", error);
+    log("error", "Error calling Groq API", { error: error.message });
 
     if (isRateLimitError(error)) {
       if (isDailyQuotaError(error)) {
@@ -217,5 +250,5 @@ app.post("/api/chat", async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Servidor iniciado en http://localhost:${PORT}`);
+  log("log", `Servidor iniciado en http://localhost:${PORT}`);
 });
