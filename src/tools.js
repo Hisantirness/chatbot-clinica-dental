@@ -198,4 +198,4 @@ const availableFunctions = {
   reservar_cita,
 };
 
-module.exports = { toolSchemas, availableFunctions };
+module.exports = { toolSchemas, availableFunctions, generarFranjas, normalizeFecha, consultar_disponibilidad, reservar_cita };
