@@ -227,6 +227,7 @@ La app se despliega automáticamente en **Railway** con cada push a `master` (au
 - URL: https://chatbot-clinica-dental-production.up.railway.app
 - **Volume** montado en `/data` para persistir la BD entre deploys
 - **Health check** en `/health` para monitoreo de Railway
+- **Inicialización** — Tanto el `Dockerfile` como `npm start` ejecutan `init-db.js` antes de levantar el servidor, creando la tabla `citas` si no existe (idempotente).
 
 ## Privacidad
 
@@ -316,8 +317,8 @@ chatbot-clinica-dental/
 │   ├── db.js                   # Conexión SQLite
 │   ├── faq-context.js          # 14 FAQs + system prompt
 │   ├── init-db.js              # Script de inicialización
-│   ├── tools.test.mjs          # 25 tests unitarios
-│   ├── server.test.mjs         # 17 tests del servidor Express
+│   ├── tools.test.mjs          # 28 tests unitarios
+│   ├── server.test.mjs         # 19 tests del servidor Express
 │   ├── test-setup.mjs          # DB temporal aislada para tests
 │   └── integration.test.mjs    # 7 tests de integración
 ├── vitest.config.mjs
@@ -353,7 +354,7 @@ Abrir `http://localhost:3000`
 | `npm start` | Inicia servidor en puerto 3000 |
 | `npm run dev` | Modo watch (recarga automática) |
 | `npm test` | 47 tests locales (28 unit + 19 server) — CI |
-| `npm run test:server` | 17 tests del servidor Express |
+| `npm run test:server` | 19 tests del servidor Express |
 | `npm run test:integration` | 7 tests contra Railway (usa la URL por defecto) |
 | `npm run test:all` | Todos los tests (locales + integración) |
 | `npm run init-db` | Crea BD solo si no existe |
