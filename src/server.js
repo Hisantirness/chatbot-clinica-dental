@@ -1,4 +1,13 @@
 require("dotenv").config();
+
+if (!process.env.GROQ_API_KEY) {
+  console.error("ERROR: GROQ_API_KEY no está configurada.");
+  console.error("Crea un archivo .env en la raíz del proyecto con:");
+  console.error('  GROQ_API_KEY=tu-api-key-de-groq');
+  console.error("O configúrala como variable de entorno del sistema.");
+  process.exit(1);
+}
+
 const express = require("express");
 const path = require("path");
 const Groq = require("groq-sdk");
