@@ -22,6 +22,7 @@ async function initDB() {
       servicio TEXT NOT NULL,
       fecha TEXT NOT NULL,
       hora TEXT NOT NULL,
+      dentista TEXT,
       creado_en TEXT DEFAULT (datetime('now'))
     )
   `);

@@ -95,7 +95,7 @@ async function consultar_disponibilidad({ fecha } = {}) {
   }
 }
 
-async function reservar_cita({ nombre, cedula, telefono, servicio, fecha, hora }) {
+async function reservar_cita({ nombre, cedula, telefono, servicio, fecha, hora, dentista }) {
   return withWriteLock(async () => {
   try {
     if (!/^3\d{9}$/.test(telefono)) {
@@ -131,8 +131,8 @@ async function reservar_cita({ nombre, cedula, telefono, servicio, fecha, hora }
     }
 
     db.run(
-      "INSERT INTO citas (nombre, cedula, telefono, servicio, fecha, hora) VALUES (?, ?, ?, ?, ?, ?)",
-      [nombre, cedula, telefono, servicio, fecha, hora]
+      "INSERT INTO citas (nombre, cedula, telefono, servicio, fecha, hora, dentista) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      [nombre, cedula, telefono, servicio, fecha, hora, dentista || null]
     );
 
     const idResult = db.exec("SELECT last_insert_rowid()");
@@ -155,7 +155,7 @@ async function consultar_mis_citas({ telefono }) {
   try {
     const db = await getDB();
     const stmt = db.prepare(
-      "SELECT id, nombre, cedula, servicio, fecha, hora, creado_en FROM citas WHERE telefono = ? ORDER BY fecha, hora"
+      "SELECT id, nombre, cedula, servicio, fecha, hora, dentista, creado_en FROM citas WHERE telefono = ? ORDER BY fecha, hora"
     );
     stmt.bind([telefono]);
 
@@ -260,6 +260,11 @@ const toolSchemas = [
             type: "string",
             description:
               "Hora de la cita en formato HH:MM (debe ser un horario valido de 45 min)",
+          },
+          dentista: {
+            type: "string",
+            description:
+              "Nombre del dentista preferido (opcional). Si el paciente no lo menciona, omitelo.",
           },
         },
         required: ["nombre", "cedula", "telefono", "servicio", "fecha", "hora"],

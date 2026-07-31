@@ -96,6 +96,47 @@ describe("reservar_cita", () => {
     expect(result.mensaje).toContain("Test Paciente");
   });
 
+  it("guarda el dentista opcional cuando se especifica", async () => {
+    const result = JSON.parse(
+      await t.reservar_cita({
+        nombre: "Dentista Paciente",
+        cedula: "123123123",
+        telefono: "3003334444",
+        servicio: "ortodoncia",
+        fecha: "2026-08-11",
+        hora: "09:30",
+        dentista: "Dr. Perez",
+      })
+    );
+    expect(result.exito).toBe(true);
+
+    const citas = JSON.parse(await t.consultar_mis_citas({ telefono: "3003334444" }));
+    expect(citas.citas.length).toBeGreaterThan(0);
+    const cita = citas.citas.find((c) => c.nombre === "Dentista Paciente");
+    expect(cita).toBeDefined();
+    expect(cita.dentista).toBe("Dr. Perez");
+  });
+
+  it("guarda dentista NULL cuando no se especifica", async () => {
+    const result = JSON.parse(
+      await t.reservar_cita({
+        nombre: "Sin Dentista",
+        cedula: "321321321",
+        telefono: "3005556666",
+        servicio: "limpieza",
+        fecha: "2026-08-12",
+        hora: "08:45",
+      })
+    );
+    expect(result.exito).toBe(true);
+
+    const citas = JSON.parse(await t.consultar_mis_citas({ telefono: "3005556666" }));
+    expect(citas.citas.length).toBeGreaterThan(0);
+    const cita = citas.citas.find((c) => c.nombre === "Sin Dentista");
+    expect(cita).toBeDefined();
+    expect(cita.dentista).toBeNull();
+  });
+
   it("rechaza telefono invalido", async () => {
     const result = JSON.parse(
       await t.reservar_cita({
@@ -295,6 +336,76 @@ describe("primer arranque con base de datos vacia", () => {
 
     db.close();
     fs.rmSync(emptyDb, { force: true });
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+});
+
+describe("migracion de base de datos existente", () => {
+  async function crearBDLegacy(dbPath, conDentista) {
+    const initSqlJs = (await import("sql.js")).default;
+    const SQL = await initSqlJs();
+    const tmp = new SQL.Database();
+    tmp.run(`
+      CREATE TABLE citas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre TEXT NOT NULL,
+        cedula TEXT NOT NULL,
+        telefono TEXT NOT NULL,
+        servicio TEXT NOT NULL,
+        fecha TEXT NOT NULL,
+        hora TEXT NOT NULL,
+        ${conDentista ? "dentista TEXT," : ""}
+        creado_en TEXT DEFAULT (datetime('now'))
+      );
+    `);
+    fs.writeFileSync(dbPath, Buffer.from(tmp.export()));
+    tmp.close();
+  }
+
+  it("agrega la columna dentista a una tabla creada sin ella", async () => {
+    const legacyDb = path.join(os.tmpdir(), `clinica-legacy-${process.pid}-${Date.now()}.db`);
+    fs.rmSync(legacyDb, { force: true });
+    await crearBDLegacy(legacyDb, false);
+
+    vi.stubEnv("DB_PATH", legacyDb);
+    vi.resetModules();
+    const { getDB } = await import("./db.js");
+    const db = await getDB();
+
+    const cols = db.exec("PRAGMA table_info(citas)");
+    expect(cols[0].values.some((row) => row[1] === "dentista")).toBe(true);
+
+    db.run("INSERT INTO citas (nombre, cedula, telefono, servicio, fecha, hora, dentista) VALUES (?, ?, ?, ?, ?, ?, ?)", ["Legacy", "1", "3001112233", "resina", "2026-08-20", "10:00", "Dr. Lopez"]);
+
+    const insert = db.exec("SELECT dentista FROM citas");
+    expect(insert[0].values[0][0]).toBe("Dr. Lopez");
+
+    db.close();
+    fs.rmSync(legacyDb, { force: true });
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it("no duplica la columna si ya existe (idempotente)", async () => {
+    const legacyDb = path.join(os.tmpdir(), `clinica-legacy2-${process.pid}-${Date.now()}.db`);
+    fs.rmSync(legacyDb, { force: true });
+    await crearBDLegacy(legacyDb, true);
+
+    vi.stubEnv("DB_PATH", legacyDb);
+    vi.resetModules();
+    const { getDB, ensureColumn } = await import("./db.js");
+    const db = await getDB();
+
+    ensureColumn(db, "citas", "dentista", "dentista TEXT");
+    ensureColumn(db, "citas", "dentista", "dentista TEXT");
+
+    const cols = db.exec("PRAGMA table_info(citas)");
+    const dentistas = cols[0].values.filter((row) => row[1] === "dentista");
+    expect(dentistas.length).toBe(1);
+
+    db.close();
+    fs.rmSync(legacyDb, { force: true });
     vi.unstubAllEnvs();
     vi.resetModules();
   });

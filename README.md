@@ -123,7 +123,7 @@ stateDiagram-v2
 |------------|---------|-----------------|
 | **Servidor HTTP** | `src/server.js` | Express, middleware de seguridad, rutas, auth admin, loop de tool-calling |
 | **Herramientas** | `src/tools.js` | Lógica de negocio: disponibilidad, reserva, consulta y cancelación de citas |
-| **Base de datos** | `src/db.js` | Abre/guarda la BD SQLite (sql.js), crea tabla `citas` si no existe |
+| **Base de datos** | `src/db.js` | Abre/guarda la BD SQLite (sql.js), crea tabla `citas` si no existe y migra columnas nuevas con `ensureColumn` (idempotente) |
 | **Contexto del LLM** | `src/faq-context.js` | System prompt + 14 FAQs de la clínica |
 | **Inicialización** | `src/init-db.js` | Crea la BD solo si no existe (corre en `npm start` y en Railway) |
 | **Chat UI** | `public/script.js` | Frontend del chat, historial, indicador de escritura, retry |
@@ -183,7 +183,7 @@ Este proyecto no es un chatbot genérico: cada problema de producción real se r
 
 ### Gestión de citas
 - `consultar_disponibilidad` — horarios libres para una fecha
-- `reservar_cita` — agenda cita con nombre, cédula, teléfono, servicio
+- `reservar_cita` — agenda cita con nombre, cédula, teléfono, servicio y dentista preferido (opcional)
 - `consultar_mis_citas` — lista todas las citas de un paciente
 - `cancelar_cita` — cancela cita verificando propiedad
 
@@ -317,7 +317,7 @@ chatbot-clinica-dental/
 │   ├── db.js                   # Conexión SQLite
 │   ├── faq-context.js          # 14 FAQs + system prompt
 │   ├── init-db.js              # Script de inicialización
-│   ├── tools.test.mjs          # 28 tests unitarios
+│   ├── tools.test.mjs          # 32 tests unitarios
 │   ├── server.test.mjs         # 19 tests del servidor Express
 │   ├── test-setup.mjs          # DB temporal aislada para tests
 │   └── integration.test.mjs    # 7 tests de integración
@@ -353,7 +353,7 @@ Abrir `http://localhost:3000`
 |---------|-------------|
 | `npm start` | Inicia servidor en puerto 3000 |
 | `npm run dev` | Modo watch (recarga automática) |
-| `npm test` | 47 tests locales (28 unit + 19 server) — CI |
+| `npm test` | 51 tests locales (32 unit + 19 server) — CI |
 | `npm run test:server` | 19 tests del servidor Express |
 | `npm run test:integration` | 7 tests contra Railway (usa la URL por defecto) |
 | `npm run test:all` | Todos los tests (locales + integración) |

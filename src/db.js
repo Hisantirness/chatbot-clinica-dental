@@ -6,6 +6,14 @@ const DB_PATH = process.env.DB_PATH || path.join(__dirname, "..", "clinica.db");
 
 let db = null;
 
+function ensureColumn(db, table, column, ddl) {
+  const res = db.exec(`PRAGMA table_info(${table})`);
+  const cols = res.length > 0 ? res[0].values.map((row) => row[1]) : [];
+  if (!cols.includes(column)) {
+    db.run(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+  }
+}
+
 async function getDB() {
   if (db) return db;
 
@@ -27,9 +35,12 @@ async function getDB() {
       servicio TEXT NOT NULL,
       fecha TEXT NOT NULL,
       hora TEXT NOT NULL,
+      dentista TEXT,
       creado_en TEXT DEFAULT (datetime('now'))
     )
   `);
+
+  ensureColumn(db, "citas", "dentista", "dentista TEXT");
 
   saveDB();
   return db;
@@ -42,4 +53,4 @@ function saveDB() {
   fs.writeFileSync(DB_PATH, buffer);
 }
 
-module.exports = { getDB, saveDB };
+module.exports = { getDB, saveDB, ensureColumn };

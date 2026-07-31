@@ -65,6 +65,7 @@ async function loadCitas() {
       <td>${esc(c.cedula)}</td>
       <td>${esc(c.telefono)}</td>
       <td>${esc(c.servicio)}</td>
+      <td>${esc(c.dentista || "")}</td>
       <td>${esc(c.fecha)}</td>
       <td>${esc(c.hora)}</td>
       <td><button class="btn btn-danger btn-sm cancelar-btn" data-id="${c.id}">Cancelar</button></td>
