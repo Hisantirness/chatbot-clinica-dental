@@ -212,3 +212,129 @@ describe("GET /api/admin/citas/export", () => {
     expect(csvEscape("Juan Pérez")).toBe('"Juan Pérez"');
   });
 });
+
+describe("GET /confirmar", () => {
+  it("rechaza un token invalido", async () => {
+    const res = await request(app).get("/confirmar?token=malo");
+    expect(res.status).toBe(400);
+    expect(res.text).toContain("invalido");
+  });
+
+  it("responde 404 para un token valido sin cita", async () => {
+    const res = await request(app).get(`/confirmar?token=${"c".repeat(64)}`);
+    expect(res.status).toBe(404);
+    expect(res.text).toContain("no encontrada");
+  });
+});
+
+describe("GET /cancelar", () => {
+  it("rechaza un token invalido", async () => {
+    const res = await request(app).get("/cancelar?token=bad");
+    expect(res.status).toBe(400);
+  });
+
+  it("responde 404 para un token valido sin cita", async () => {
+    const res = await request(app).get(`/cancelar?token=${"d".repeat(64)}`);
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("confirmar/cancelar end to end", () => {
+  async function cargarModulo() {
+    vi.resetModules();
+    const toolsMod = await import("../src/tools.js");
+    const dbMod = await import("../src/db.js");
+    const serverMod = await import("../src/server.js");
+    return { tools: toolsMod, dbMod, app: serverMod.default };
+  }
+
+  async function reabrirDb() {
+    vi.resetModules();
+    const dbMod = await import("../src/db.js");
+    return dbMod.getDB();
+  }
+
+  it("al confirmar marca la cita como confirmado=1", async () => {
+    const { tools, app } = await cargarModulo();
+    const r = JSON.parse(await tools.reservar_cita({
+      nombre: "Confirmo Flow", cedula: "111222333", telefono: "3111111222", servicio: "limpieza", fecha: "2099-06-15", hora: "09:30",
+    }));
+    expect(r.exito).toBe(true);
+
+    const db = await reabrirDb();
+    const tokenRow = db.exec("SELECT confirm_token FROM citas WHERE id = ?", [r.cita_id]);
+    const token = tokenRow[0].values[0][0];
+
+    const res = await request(app).get(`/confirmar?token=${token}`);
+    expect(res.status).toBe(200);
+    expect(res.text).toContain("confirmada");
+
+    const dbFinal = await reabrirDb();
+    const updated = dbFinal.exec("SELECT confirmado FROM citas WHERE confirm_token = ?", [token]);
+    expect(updated[0].values[0][0]).toBe(1);
+  });
+
+  it("al cancelar elimina la cita", async () => {
+    const { tools, app } = await cargarModulo();
+    const r = JSON.parse(await tools.reservar_cita({
+      nombre: "Cancela Flow", cedula: "000", telefono: "3111111333", servicio: "limpieza", fecha: "2099-06-15", hora: "10:15",
+    }));
+    expect(r.exito).toBe(true);
+
+    const db = await reabrirDb();
+    const tokenRow = db.exec("SELECT confirm_token FROM citas WHERE id = ?", [r.cita_id]);
+    const token = tokenRow[0].values[0][0];
+
+    const res = await request(app).get(`/cancelar?token=${token}`);
+    expect(res.status).toBe(200);
+    expect(res.text).toContain("cancelada");
+
+    const dbFinal = await reabrirDb();
+    const count = dbFinal.exec("SELECT COUNT(*) FROM citas WHERE confirm_token = ?", [token]);
+    expect(count[0].values[0][0]).toBe(0);
+  });
+});
+
+describe("GET /api/admin/recordatorios", () => {
+  it("responde con resumen cuando ADMIN_TOKEN esta configurado", async () => {
+    vi.stubEnv("ADMIN_TOKEN", "token-secreto-de-reporte");
+    vi.resetModules();
+    const mod = await import("../src/server.js");
+    const appUnderTest = mod.default;
+    const res = await request(appUnderTest)
+      .get("/api/admin/recordatorios")
+      .set("Authorization", "Bearer token-secreto-de-reporte");
+    expect(res.status).toBe(200);
+    expect(res.body.resumen).toBeDefined();
+    expect(res.body.proximas).toBeDefined();
+    expect(res.body.enviadas).toBeDefined();
+    expect(res.body.sedes).toBeDefined();
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it("rechaza sin token", async () => {
+    vi.stubEnv("ADMIN_TOKEN", "x");
+    vi.resetModules();
+    const mod = await import("../src/server.js");
+    const res = await request(mod.default).get("/api/admin/recordatorios");
+    expect(res.status).toBe(401);
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+});
+
+describe("POST /api/admin/recordatorios/prueba", () => {
+  it("rechaza sin email de destino", async () => {
+    vi.stubEnv("ADMIN_TOKEN", "token-secreto-de-test");
+    vi.resetModules();
+    const mod = await import("../src/server.js");
+    const res = await request(mod.default)
+      .post("/api/admin/recordatorios/prueba")
+      .send({})
+      .set("Authorization", "Bearer token-secreto-de-test");
+    expect(res.status).toBe(400);
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+});

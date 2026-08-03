@@ -32,6 +32,46 @@
         <div class="stat-card"><div class="value" id="hoyCitas">0</div><div class="label">Hoy</div></div>
       </div>
 
+      <div class="section-title">
+        <h2>Recordatorios</h2>
+        <div class="section-actions">
+          <select id="sedeFilter" class="select-filter">
+            <option value="">Todas las sedes</option>
+          </select>
+          <button class="btn btn-outline btn-sm" id="testEmailBtn">Enviar prueba</button>
+        </div>
+      </div>
+      <div class="stats" id="reminderStats">
+        <div class="stat-card"><div class="value" id="remConEmail">0</div><div class="label">Con email</div></div>
+        <div class="stat-card"><div class="value" id="remPendientes">0</div><div class="label">Pendientes 7d</div></div>
+        <div class="stat-card"><div class="value" id="remEnviados">0</div><div class="label">Enviados</div></div>
+        <div class="stat-card"><div class="value" id="remConfirmados">0</div><div class="label">Confirmados</div></div>
+      </div>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Nombre</th>
+              <th>Email</th>
+              <th>Servicio</th>
+              <th>Sede</th>
+              <th>Fecha</th>
+              <th>Hora</th>
+              <th>Recordatorio</th>
+              <th>Confirmacion</th>
+              <th>Accion</th>
+            </tr>
+          </thead>
+          <tbody id="remindersBody"></tbody>
+        </table>
+        <div class="empty hidden" id="remindersEmpty">No hay recordatorios que mostrar.</div>
+      </div>
+
+      <div class="section-title">
+        <h2>Todas las citas</h2>
+      </div>
       <div class="table-container">
         <table>
           <thead>
@@ -42,9 +82,11 @@
               <th>Telefono</th>
               <th>Email</th>
               <th>Servicio</th>
+              <th>Sede</th>
               <th>Dentista</th>
               <th>Fecha</th>
               <th>Hora</th>
+              <th>Confirm.</th>
               <th>Accion</th>
             </tr>
           </thead>

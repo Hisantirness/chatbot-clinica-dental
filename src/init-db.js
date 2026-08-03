@@ -25,6 +25,10 @@ async function initDB() {
       dentista TEXT,
       email TEXT,
       recordatorio_enviado INTEGER DEFAULT 0,
+      sede TEXT,
+      confirm_token TEXT,
+      confirmado INTEGER DEFAULT 0,
+      recordatorio_enviado_en TEXT,
       creado_en TEXT DEFAULT (datetime('now'))
     )
   `);

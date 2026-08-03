@@ -1,7 +1,7 @@
 # Chatbot Clínica Dental Sonrisa Sana
 
 [![CI](https://github.com/Hisantirness/chatbot-clinica-dental/actions/workflows/ci.yml/badge.svg)](https://github.com/Hisantirness/chatbot-clinica-dental/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-68%20local%20%2B%207%20integration-brightgreen)](#)
+[![Tests](https://img.shields.io/badge/tests-88%20local%20%2B%207%20integration-brightgreen)](#)
 [![Node](https://img.shields.io/badge/Node.js-20.x-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org)
 [![Express](https://img.shields.io/badge/Express-4-000000?logo=express&logoColor=white)](https://expressjs.com)
 [![SQLite](https://img.shields.io/badge/SQLite-sql.js-003B57?logo=sqlite&logoColor=white)](https://sql.js.org)
@@ -43,14 +43,15 @@ flowchart TD
     subgraph Express["Servidor Express · src/server.js"]
         direction TB
         Middleware["Middleware<br/>Helmet · CSP estricta · CORS allowlist<br/>Rate limit 20 req/min · JSON ≤ 10 KB<br/>Logger + audit"]
-        Routes["Rutas<br/>GET /health · GET / · GET /admin<br/>POST /api/chat<br/>GET·DELETE /api/citas<br/>GET /api/admin/citas · /export"]
+        Routes["Rutas<br/>GET /health · GET / · GET /admin<br/>POST /api/chat<br/>GET·DELETE /api/citas<br/>GET /api/admin/citas · /export · /recordatorios<br/>GET /confirmar · /cancelar (publico por token)"]
     end
 
     subgraph Data["Capa de datos"]
         direction LR
         Groq["Groq API<br/>(Llama 3.3 70B)"]
         Tools["src/tools.js<br/>4 tools"]
-        Reminders["src/reminders.js<br/>job email 24h antes"]
+        Reminders["src/reminders.js<br/>job email 24h antes<br/>HTML + confirm/cancel"]
+        Sedes["src/sedes.js<br/>configuracion de sedes"]
         DB[("src/db.js · sql.js<br/>clinica.db<br/>(Volume /data)")]
     end
 
@@ -62,6 +63,10 @@ flowchart TD
     Tools -->|"SQL"| DB
     Reminders -->|"lee/marca citas"| DB
     Reminders -->|"SMTP"| Email["Correo del paciente"]
+    Paciente -->|"GET /confirmar?token"| Confirmar["Confirma asistencia<br/>/confirmar"]
+    Paciente -->|"GET /cancelar?token"| Cancelar["Cancela cita<br/>/cancelar"]
+    Confirmar -->|"UPDATE confirmado"| DB
+    Cancelar -->|"DELETE"| DB
     Groq -->|"tool schemas"| Tools
 ```
 
@@ -109,6 +114,10 @@ erDiagram
         TEXT dentista "opcional"
         TEXT email "opcional, para recordatorio"
         INTEGER recordatorio_enviado "0/1"
+        TEXT sede "opcional, por defecto Sede Norte"
+        TEXT confirm_token "token 128 bits para confirmar/cancelar"
+        INTEGER confirmado "0 sin respuesta / 1 confirmado / 2 cancelado"
+        TEXT recordatorio_enviado_en "ISO timestamp del envio"
         TEXT creado_en "DEFAULT datetime('now')"
     }
 ```
@@ -119,8 +128,11 @@ erDiagram
 stateDiagram-v2
     [*] --> Disponible: franja libre de 45 min
     Disponible --> Reservada: reservar_cita
-    Reservada --> Disponible: cancelar_cita
+    Reservada --> Confirmada: paciente confirma (GET /confirmar)
+    Reservada --> Disponible: cancelar_cita / GET /cancelar
+    Confirmada --> Disponible: cancelar_cita
     Reservada --> [*]: cita cumplida
+    Confirmada --> [*]: cita cumplida
 ```
 
 ### Componentes
@@ -129,8 +141,9 @@ stateDiagram-v2
 |------------|---------|-----------------|
 | **Servidor HTTP** | `src/server.js` | Express, middleware de seguridad, rutas, auth admin, loop de tool-calling |
 | **Herramientas** | `src/tools.js` | Lógica de negocio: disponibilidad, reserva, consulta y cancelación de citas |
-| **Recordatorios** | `src/reminders.js` | Job que envía recordatorios por email 24h antes de la cita (no-op sin SMTP) |
+| **Recordatorios** | `src/reminders.js` | Job que envía recordatorios por email 24h antes (HTML con enlaces de confirmación/cancelación y token seguro); no-op sin SMTP |
 | **Base de datos** | `src/db.js` | Abre/guarda la BD SQLite (sql.js), crea tabla `citas` si no existe y migra columnas nuevas con `ensureColumn` (idempotente) |
+| **Sedes** | `src/sedes.js` | Configuración de sedes (nombre + dirección) desde `SEDES` |
 | **Contexto del LLM** | `src/faq-context.js` | System prompt + 14 FAQs de la clínica |
 | **Inicialización** | `src/init-db.js` | Crea la BD solo si no existe (corre en `npm start` y en Railway) |
 | **Chat UI** | `public/script.js` | Frontend del chat, historial, indicador de escritura, retry |
@@ -158,6 +171,9 @@ Este proyecto no es un chatbot genérico: cada problema de producción real se r
 - **Tests idempotentes** — Los tests escribían en la DB real y fallaban en la segunda corrida. Se aisló la DB de pruebas en un archivo temporal por proceso (`test-setup.mjs`).
 - **Condición de carrera en reservas simultáneas** — sql.js mantiene la BD en memoria y no serializa escrituras por defecto. Se agregó un *write lock* (Promise-based) que envuelve el *check-then-insert* de las reservas y las cancelaciones, garantizando que dos reservas al mismo slot no puedan confirmarse a la vez.
 - **Recordatorios seguros sin configuración** — El job de recordatorios por email es un *no-op* cuando no hay SMTP configurado: no construye transport ni envía, solo loguea. Así la app funciona en producción (Railway) sin credenciales y queda lista para activarse con `.env`.
+- **Confirmación de asistencia sin cuenta de usuario** — Cada cita recibe un `confirm_token` aleatorio de 128 bits (64 hex) generado al reservar. El correo incluye enlaces `/confirmar` y `/cancelar` firmados por ese token, que no requieren contraseña. Los endpoints son públicos pero solo operan sobre la cita cuyo token se conoce, son idempotentes y están limitados por rate-limit.
+- **Multi-sede configurable** — Las sedes se definen en una sola variable `SEDES` ("Nombre|Dirección;Nombre2|Dirección2"). `src/sedes.js` las parsea y las usa tanto la reserva, como el email y el panel admin sin duplicar lógica.
+- **Reporte de recordatorios en el panel** — Un endpoint agrega estadísticas (con/sin email, enviados, pendientes de 7 días, confirmados) y permite forzar un envío o mandar un email de prueba, útil para validar SMTP y hacer demos.
 
 ## Tech Stack
 
@@ -175,7 +191,7 @@ Este proyecto no es un chatbot genérico: cada problema de producción real se r
 | **LLM API** | Groq (Llama 3.3 70B, tier gratis, 14,400 req/día) |
 | **Base de datos** | SQLite via sql.js |
 | **Frontend** | HTML + CSS + JS vanilla (sin frameworks) |
-| **Testing** | Vitest (34 unit + 23 server + 11 reminders + 7 integración) |
+| **Testing** | Vitest (39 unit + 32 server + 17 reminders + 7 integración) |
 | **CI/CD** | GitHub Actions + Railway |
 | **Seguridad** | Helmet, CORS, rate-limit, sanitización XSS, panel admin con token |
 
@@ -200,8 +216,24 @@ Este proyecto no es un chatbot genérico: cada problema de producción real se r
 - Job automático (`setInterval`) configurable con `REMINDER_INTERVAL_MINUTES` (default: 30 min, `0` lo desactiva)
 - Envía recordatorio exactamente 24h antes de la cita, en zona horaria de Colombia (UTC-5)
 - Solo a citas con correo registrado y nunca reenvía (columna `recordatorio_enviado`)
+- **Email HTML** con la marca Sonrisa Sana, datos de la cita, sede y dirección
+- **Botón "Confirmo mi asistencia"** → `/confirmar?token=...` marca `confirmado=1`
+- **Enlace de cancelación/reprogramación** → `/cancelar?token=...` elimina la cita
+- Cada enlace está firmado con un `confirm_token` de 128 bits generado al reservar (y backfilled al enviar para citas antiguas)
 - **No-op seguro**: sin `SMTP_*` y `EMAIL_FROM` configurados, el job se omite y no rompe el servidor
 - Usa `nodemailer` (funciona con Gmail app password o cualquier proveedor SMTP)
+
+### Gestión multi-sede
+- `SEDES` define las sedes como `"Nombre|Dirección;Nombre2|Dirección2"` (default: `Sede Norte|Avenida 6 Norte, Cali`)
+- `reservar_cita` acepta una `sede` opcional; si no se indica, usa la sede por defecto
+- El email, la confirmación y el panel admin muestran la sede correcta
+- El panel admin permite filtrar recordatorios por sede
+
+### Reporte de recordatorios (admin)
+- `GET /api/admin/recordatorios` — resumen (total, con/sin email, enviados, pendientes 7 días, confirmados) + lista de próximos y enviados + sedes
+- `POST /api/admin/recordatorios/prueba` — envía un email de prueba a un correo (o `ADMIN_EMAIL`) para validar SMTP
+- `POST /api/admin/recordatorios/:id/enviar` — fuerza el envío de un recordatorio para una cita concreta (útil en demos)
+- La interfaz del panel agrega tarjetas de estadísticas, tabla de recordatorios y botones "Enviar ahora" / "Enviar prueba"
 
 ### Seguridad
 - Helmet: HTTP headers seguros
@@ -333,6 +365,46 @@ Cancela una cita por ID. Requiere `Authorization: Bearer <ADMIN_TOKEN>`. Para ca
 { "exito": true, "mensaje": "Cita 1 cancelada exitosamente." }
 ```
 
+### `GET /confirmar?token=...`
+Confirmación de asistencia pública (sin autenticación). El token viene en el correo de recordatorio.
+
+```json
+{ "exito": true, "mensaje": "¡Gracias! Tu asistencia ha sido confirmada." }
+```
+
+### `GET /cancelar?token=...`
+Cancelación de cita pública (sin autenticación). El token viene en el correo de recordatorio.
+
+```json
+{ "exito": true, "mensaje": "Tu cita ha sido cancelada." }
+```
+
+### `GET /api/admin/recordatorios`
+Reporte de recordatorios. Requiere `Authorization: Bearer <ADMIN_TOKEN>`. Acepta `?sede=Nombre` para filtrar.
+
+```json
+{
+  "stats": { "total": 12, "con_email": 8, "enviados": 5, "pendientes7d": 3, "confirmados": 2 },
+  "proximos": [ { "id": 3, "nombre": "María", "fecha": "2026-08-10", "hora": "10:15", "email": "...", "sede": "Sede Norte", "confirmado": 0 } ],
+  "enviados": [],
+  "sedes": ["Sede Norte", "Sede Sur"]
+}
+```
+
+### `POST /api/admin/recordatorios/prueba`
+Envía un email de prueba. Requiere `Authorization: Bearer <ADMIN_TOKEN>`.
+
+```json
+{ "exito": true, "mensaje": "Email de prueba enviado a destinatario@correo.com." }
+```
+
+### `POST /api/admin/recordatorios/:id/enviar`
+Fuerza el envío del recordatorio para una cita concreta. Requiere `Authorization: Bearer <ADMIN_TOKEN>`.
+
+```json
+{ "exito": true, "mensaje": "Recordatorio enviado para la cita 3." }
+```
+
 ## Estructura
 
 ```
@@ -351,12 +423,13 @@ chatbot-clinica-dental/
 │   ├── server.js               # Express server + job de recordatorios
 │   ├── tools.js                # 4 herramientas del chatbot
 │   ├── db.js                   # Conexión SQLite
+│   ├── sedes.js               # Configuración multi-sede (SEDES)
 │   ├── faq-context.js          # 14 FAQs + system prompt
 │   ├── init-db.js              # Script de inicialización
-│   ├── reminders.js            # Recordatorios por email (24h antes)
-│   ├── tools.test.mjs          # 34 tests unitarios
-│   ├── server.test.mjs         # 23 tests del servidor Express
-│   ├── reminders.test.mjs      # 11 tests del job de recordatorios
+│   ├── reminders.js            # Recordatorios por email (24h antes, confirm/cancel)
+│   ├── tools.test.mjs          # 39 tests unitarios
+│   ├── server.test.mjs         # 32 tests del servidor Express
+│   ├── reminders.test.mjs      # 17 tests del job de recordatorios
 │   ├── test-setup.mjs          # DB temporal aislada para tests
 │   └── integration.test.mjs    # 7 tests de integración
 ├── vitest.config.mjs
@@ -411,6 +484,9 @@ Abrir `http://localhost:3000`
 | `SMTP_USER` / `SMTP_PASS` | No | Credenciales SMTP (en Gmail, usar app password) |
 | `EMAIL_FROM` | No | Remitente de los correos de recordatorio |
 | `REMINDER_INTERVAL_MINUTES` | No | Intervalo del job en minutos (default: 30, `0` lo desactiva) |
+| `PUBLIC_BASE_URL` | No | URL pública ingresada por el usuario para los enlaces de confirmación/cancelación (default: http://localhost:3000) |
+| `SEDES` | No | Sedes `"Nombre|Dirección;Nombre2|Dirección2"` (default: `Sede Norte\|Avenida 6 Norte, Cali`) |
+| `ADMIN_EMAIL` | No | Correo de respaldo para los tests de envío de recordatorio |
 
 *Se recomienda configurarlo. Si no está, los endpoints de citas quedan sin protección.
 

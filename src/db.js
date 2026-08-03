@@ -38,6 +38,10 @@ async function getDB() {
       dentista TEXT,
       email TEXT,
       recordatorio_enviado INTEGER DEFAULT 0,
+      sede TEXT,
+      confirm_token TEXT,
+      confirmado INTEGER DEFAULT 0,
+      recordatorio_enviado_en TEXT,
       creado_en TEXT DEFAULT (datetime('now'))
     )
   `);
@@ -45,6 +49,10 @@ async function getDB() {
   ensureColumn(db, "citas", "dentista", "dentista TEXT");
   ensureColumn(db, "citas", "email", "email TEXT");
   ensureColumn(db, "citas", "recordatorio_enviado", "recordatorio_enviado INTEGER DEFAULT 0");
+  ensureColumn(db, "citas", "sede", "sede TEXT");
+  ensureColumn(db, "citas", "confirm_token", "confirm_token TEXT");
+  ensureColumn(db, "citas", "confirmado", "confirmado INTEGER DEFAULT 0");
+  ensureColumn(db, "citas", "recordatorio_enviado_en", "recordatorio_enviado_en TEXT");
 
   saveDB();
   return db;

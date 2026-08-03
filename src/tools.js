@@ -1,4 +1,6 @@
+const crypto = require("crypto");
 const { getDB, saveDB } = require("./db");
+const { getSedePorDefecto } = require("./sedes");
 
 let writeLock = Promise.resolve();
 
@@ -95,7 +97,7 @@ async function consultar_disponibilidad({ fecha } = {}) {
   }
 }
 
-async function reservar_cita({ nombre, cedula, telefono, servicio, fecha, hora, dentista, email }) {
+async function reservar_cita({ nombre, cedula, telefono, servicio, fecha, hora, dentista, email, sede }) {
   return withWriteLock(async () => {
   try {
     if (!/^3\d{9}$/.test(telefono)) {
@@ -130,9 +132,12 @@ async function reservar_cita({ nombre, cedula, telefono, servicio, fecha, hora, 
       });
     }
 
+    const sedeFinal = (sede && String(sede).trim()) || getSedePorDefecto().nombre;
+    const confirmToken = crypto.randomBytes(32).toString("hex");
+
     db.run(
-      "INSERT INTO citas (nombre, cedula, telefono, servicio, fecha, hora, dentista, email) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-      [nombre, cedula, telefono, servicio, fecha, hora, dentista || null, email || null]
+      "INSERT INTO citas (nombre, cedula, telefono, servicio, fecha, hora, dentista, email, sede, confirm_token) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      [nombre, cedula, telefono, servicio, fecha, hora, dentista || null, email || null, sedeFinal, confirmToken]
     );
 
     const idResult = db.exec("SELECT last_insert_rowid()");
@@ -143,7 +148,8 @@ async function reservar_cita({ nombre, cedula, telefono, servicio, fecha, hora, 
     return JSON.stringify({
       exito: true,
       cita_id: id,
-      mensaje: `Cita confirmada: ${nombre} el ${fecha} a las ${hora} para ${servicio}.`,
+      sede: sedeFinal,
+      mensaje: `Cita confirmada: ${nombre} el ${fecha} a las ${hora} para ${servicio}${email ? ` en la ${sedeFinal}` : ""}.`,
     });
   } catch (err) {
     return JSON.stringify({ exito: false, error: err.message });
@@ -155,7 +161,7 @@ async function consultar_mis_citas({ telefono }) {
   try {
     const db = await getDB();
     const stmt = db.prepare(
-      "SELECT id, nombre, cedula, servicio, fecha, hora, dentista, email, creado_en FROM citas WHERE telefono = ? ORDER BY fecha, hora"
+      "SELECT id, nombre, cedula, servicio, fecha, hora, dentista, email, sede, creado_en FROM citas WHERE telefono = ? ORDER BY fecha, hora"
     );
     stmt.bind([telefono]);
 
@@ -270,6 +276,11 @@ const toolSchemas = [
             type: "string",
             description:
               "Correo electronico del paciente (opcional) para enviarle el recordatorio de la cita. Solo incluyelo si el paciente lo proporciona voluntariamente.",
+          },
+          sede: {
+            type: "string",
+            description:
+              "Sede de la clinica donde quiere la cita (opcional). Si el paciente no menciona una sede, omitelo y se usara la sede por defecto.",
           },
         },
         required: ["nombre", "cedula", "telefono", "servicio", "fecha", "hora"],

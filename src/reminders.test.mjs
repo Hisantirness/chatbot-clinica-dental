@@ -92,6 +92,81 @@ describe("generarContenidoEmail", () => {
     });
     expect(contenido.text).not.toContain("Dentista:");
   });
+
+  it("incluye una parte HTML con el aviso de la cita", async () => {
+    const { reminders } = await importar(true);
+    const contenido = reminders.generarContenidoEmail({
+      nombre: "Juan Perez",
+      servicio: "ortodoncia",
+      fecha: "2026-08-10",
+      hora: "14:00",
+    });
+    expect(contenido.html).toContain("<!DOCTYPE html>");
+    expect(contenido.html).toContain("Sonrisa Sana");
+    expect(contenido.html).toContain("Juan Perez");
+  });
+
+  it("incluye enlaces de confirmacion y cancelacion con el token", async () => {
+    const { reminders } = await importar(true);
+    vi.stubEnv("PUBLIC_BASE_URL", "https://demo.sonrisasana.com");
+    const token = "a".repeat(64);
+    const contenido = reminders.generarContenidoEmail({
+      nombre: "Juan",
+      servicio: "limpieza",
+      fecha: "2026-08-10",
+      hora: "14:00",
+      confirm_token: token,
+      sede: "Sede Norte",
+    });
+    expect(contenido.text).toContain(`https://demo.sonrisasana.com/confirmar?token=${token}`);
+    expect(contenido.text).toContain(`https://demo.sonrisasana.com/cancelar?token=${token}`);
+    expect(contenido.html).toContain(`/confirmar?token=${token}`);
+    vi.unstubAllEnvs();
+  });
+
+  it("incluye la sede por defecto cuando no hay sede registrada", async () => {
+    const { reminders } = await importar(true);
+    const contenido = reminders.generarContenidoEmail({
+      nombre: "Sin Sede",
+      servicio: "limpieza",
+      fecha: "2026-08-10",
+      hora: "14:00",
+    });
+    expect(contenido.text).toContain("Sede Norte");
+    expect(contenido.text).toContain("Avenida 6 Norte, Cali");
+  });
+
+  it("escapa caracteres peligrosos en el HTML del email", async () => {
+    const { reminders } = await importar(true);
+    const contenido = reminders.generarContenidoEmail({
+      nombre: "<script>alert(1)</script>",
+      servicio: "limpieza",
+      fecha: "2026-08-10",
+      hora: "14:00",
+    });
+    expect(contenido.html).not.toContain("<script>");
+    expect(contenido.html).toContain("&lt;script&gt;");
+  });
+});
+
+describe("asegurarToken", () => {
+  it("devuelve la cita sin cambios si ya tiene token", async () => {
+    const { reminders, db, dbMod } = await importar(true);
+    const id = await insertarCita(db, dbMod, {});
+    const citaConToken = { id, confirm_token: "b".repeat(64) };
+    const result = reminders.asegurarToken(db, citaConToken);
+    expect(result.confirm_token).toBe("b".repeat(64));
+  });
+
+  it("genera y persiste un token de 64 hex cuando falta", async () => {
+    const { reminders, db, dbMod } = await importar(true);
+    const id = await insertarCita(db, dbMod, { confirm_token: null });
+    const result = reminders.asegurarToken(db, { id, nombre: "X", email: "x@test.com" });
+    expect(result.confirm_token).toMatch(/^[a-f0-9]{64}$/);
+    const row = db.exec("SELECT confirm_token FROM citas WHERE id = ?", [id]);
+    expect(row[0].values[0][0]).toBe(result.confirm_token);
+    dbMod.saveDB();
+  });
 });
 
 describe("correrRecordatorios - sin SMTP", () => {

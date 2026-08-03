@@ -236,6 +236,88 @@ describe("reservar_cita", () => {
     );
     expect(result.exito).toBe(false);
   });
+
+  it("usa la sede por defecto cuando no se especifica", async () => {
+    const result = JSON.parse(
+      await t.reservar_cita({
+        nombre: "Sede Default",
+        cedula: "111111111",
+        telefono: "3110000001",
+        servicio: "limpieza",
+        fecha: "2026-08-15",
+        hora: "08:00",
+      })
+    );
+    expect(result.exito).toBe(true);
+    expect(result.sede).toBe("Sede Norte");
+
+    const citas = JSON.parse(await t.consultar_mis_citas({ telefono: "3110000001" }));
+    const cita = citas.citas.find((c) => c.nombre === "Sede Default");
+    expect(cita.sede).toBe("Sede Norte");
+  });
+
+  it("guarda la sede especificada y genera confirm_token", async () => {
+    const result = JSON.parse(
+      await t.reservar_cita({
+        nombre: "Sede Especifica",
+        cedula: "222222222",
+        telefono: "3110000002",
+        servicio: "ortodoncia",
+        fecha: "2026-08-19",
+        hora: "09:30",
+        sede: "Sede Sur",
+      })
+    );
+    expect(result.exito).toBe(true);
+    expect(result.sede).toBe("Sede Sur");
+
+    const citas = JSON.parse(await t.consultar_mis_citas({ telefono: "3110000002" }));
+    const cita = citas.citas.find((c) => c.nombre === "Sede Especifica");
+    expect(cita.sede).toBe("Sede Sur");
+    expect(cita.confirm_token).toBeUndefined();
+  });
+
+  it("genera un confirm_token unico de 64 caracteres hex al reservar", async () => {
+    const result = JSON.parse(
+      await t.reservar_cita({
+        nombre: "Token Paciente",
+        cedula: "333333333",
+        telefono: "3110000003",
+        servicio: "resina",
+        fecha: "2026-08-18",
+        hora: "10:15",
+      })
+    );
+    expect(result.exito).toBe(true);
+    expect(result.cita_id).toBeDefined();
+  });
+});
+
+describe("confirm_token en la base de datos", () => {
+  it("reservar_cita persiste un confirm_token valido en la BD", async () => {
+    const result = JSON.parse(
+      await t.reservar_cita({
+        nombre: "Persist Token",
+        cedula: "444444444",
+        telefono: "3110000004",
+        servicio: "implante",
+        fecha: "2026-08-19",
+        hora: "11:00",
+      })
+    );
+    expect(result.exito).toBe(true);
+
+    const { getDB } = await import("./db.js");
+    const db = await getDB();
+    const row = db.exec("SELECT confirm_token, sede, confirmado FROM citas WHERE id = ?", [result.cita_id]);
+    expect(row.length).toBeGreaterThan(0);
+    const token = row[0].values[0][0];
+    const sede = row[0].values[0][1];
+    const confirmado = row[0].values[0][2];
+    expect(token).toMatch(/^[a-f0-9]{64}$/);
+    expect(sede).toBe("Sede Norte");
+    expect(confirmado).toBe(0);
+  });
 });
 
 describe("consultar_mis_citas", () => {
@@ -474,6 +556,29 @@ describe("migracion de base de datos existente", () => {
     const insert = db.exec("SELECT email, recordatorio_enviado FROM citas");
     expect(insert[0].values[0][0]).toBe("paciente@ejemplo.com");
     expect(insert[0].values[0][1]).toBe(0);
+
+    db.close();
+    fs.rmSync(legacyDb, { force: true });
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it("agrega las columnas sede, confirm_token, confirmado y recordatorio_enviado_en a una tabla legacy", async () => {
+    const legacyDb = path.join(os.tmpdir(), `clinica-legacy4-${process.pid}-${Date.now()}.db`);
+    fs.rmSync(legacyDb, { force: true });
+    await crearBDLegacy(legacyDb, true);
+
+    vi.stubEnv("DB_PATH", legacyDb);
+    vi.resetModules();
+    const { getDB } = await import("./db.js");
+    const db = await getDB();
+
+    const cols = db.exec("PRAGMA table_info(citas)");
+    const nombres = cols[0].values.map((row) => row[1]);
+    expect(nombres).toContain("sede");
+    expect(nombres).toContain("confirm_token");
+    expect(nombres).toContain("confirmado");
+    expect(nombres).toContain("recordatorio_enviado_en");
 
     db.close();
     fs.rmSync(legacyDb, { force: true });

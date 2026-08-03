@@ -1,0 +1,40 @@
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: #f1f5f9;
+  color: #0f172a;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.card {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 40px 36px;
+  max-width: 480px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+}
+.card .brand {
+  color: #0c4a6e;
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.card .sub { color: #64748b; font-size: 13px; margin-bottom: 24px; }
+.icon { font-size: 48px; margin-bottom: 16px; }
+.title { font-size: 20px; font-weight: 700; margin-bottom: 8px; color: #0f172a; }
+.msg { font-size: 14px; color: #475569; line-height: 1.6; margin-bottom: 24px; }
+.detail {
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 16px;
+  font-size: 14px;
+  color: #0f172a;
+  margin-bottom: 24px;
+}
+.detail .row { padding: 4px 0; }
+.footer { font-size: 12px; color: #94a3b8; }

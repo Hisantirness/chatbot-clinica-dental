@@ -10,7 +10,8 @@ const crypto = require("crypto");
 const { systemPrompt } = require("./faq-context");
 const { toolSchemas, availableFunctions, withWriteLock } = require("./tools");
 const { getDB, saveDB } = require("./db");
-const { correrRecordatorios } = require("./reminders");
+const { correrRecordatorios, enviarRecordatorio, generarContenidoEmail, asegurarToken, fechaLegible } = require("./reminders");
+const { getSedes, getSede } = require("./sedes");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -120,6 +121,43 @@ function csvEscape(value) {
   return `"${s.replace(/"/g, '""')}"`;
 }
 
+function renderPagina({ titulo, icono, mensaje, detalle, footer }) {
+  const detalleHtml = detalle
+    ? `<div class="detail">${detalle
+        .map(([label, value]) => `<div class="row"><strong>${sanitize(label)}:</strong> ${sanitize(value)}</div>`)
+        .join("")}</div>`
+    : "";
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${sanitize(titulo)} - Sonrisa Sana</title>
+  <link rel="stylesheet" href="/response.css">
+</head>
+<body>
+  <div class="card">
+    <div class="brand">Clinica Dental Sonrisa Sana</div>
+    <div class="sub">Confirmacion de citas</div>
+    <div class="icon">${icono}</div>
+    <h1 class="title">${sanitize(titulo)}</h1>
+    <p class="msg">${sanitize(mensaje)}</p>
+    ${detalleHtml}
+    <div class="footer">${sanitize(footer || "Sonrisa Sana - A tu salud dental")}</div>
+  </div>
+</body>
+</html>`;
+}
+
+async function buscarCitaPorToken(db, token) {
+  const stmt = db.prepare("SELECT * FROM citas WHERE confirm_token = ?");
+  stmt.bind([token]);
+  const existe = stmt.step();
+  const cita = existe ? stmt.getAsObject() : null;
+  stmt.free();
+  return cita;
+}
+
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" },
   contentSecurityPolicy: {
@@ -165,6 +203,194 @@ app.get("/admin", (req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "admin.html"));
 });
 
+app.get("/confirmar", apiLimiter, async (req, res) => {
+  const { token } = req.query;
+  if (!token || !/^[a-f0-9]{64}$/.test(token)) {
+    return res.status(400).send(renderPagina({ titulo: "Enlace invalido", icono: "⚠️", mensaje: "El enlace de confirmacion no es valido. Verifica el enlace de tu correo e intenta de nuevo." }));
+  }
+
+  try {
+    const db = await getDB();
+    const cita = await buscarCitaPorToken(db, token);
+
+    if (!cita) {
+      return res.status(404).send(renderPagina({ titulo: "Cita no encontrada", icono: "🔍", mensaje: "No encontramos una cita asociada a este enlace. Es posible que la cita ya haya sido cancelada." }));
+    }
+
+    await withWriteLock(async () => {
+      const db2 = await getDB();
+      if (!cita.confirmado || cita.confirmado === 1) {
+        db2.run("UPDATE citas SET confirmado = 1 WHERE id = ?", [cita.id]);
+        saveDB();
+      }
+    });
+
+    auditLog("CONFIRMAR_ASISTENCIA", { id: cita.id, nombre: cita.nombre, fecha: cita.fecha, hora: cita.hora });
+    res.send(renderPagina({
+      titulo: "Asistencia confirmada",
+      icono: "✅",
+      mensaje: `Gracias, ${cita.nombre}. Hemos registrado tu confirmacion de asistencia.`,
+      detalle: [
+        ["Servicio", cita.servicio],
+        ["Fecha", fechaLegible(cita.fecha)],
+        ["Hora", cita.hora],
+        ["Sede", getSede(cita.sede).nombre],
+      ],
+    }));
+  } catch (err) {
+    log("error", "Error al confirmar cita", { error: err.message });
+    res.status(500).send(renderPagina({ titulo: "Error", icono: "❌", mensaje: "Ocurrio un error al confirmar tu cita. Intenta de nuevo o contactanos." }));
+  }
+});
+
+app.get("/cancelar", apiLimiter, async (req, res) => {
+  const { token } = req.query;
+  if (!token || !/^[a-f0-9]{64}$/.test(token)) {
+    return res.status(400).send(renderPagina({ titulo: "Enlace invalido", icono: "⚠️", mensaje: "El enlace de cancelacion no es valido. Verifica el enlace de tu correo e intenta de nuevo." }));
+  }
+
+  try {
+    const db = await getDB();
+    const cita = await buscarCitaPorToken(db, token);
+
+    if (!cita) {
+      return res.status(404).send(renderPagina({ titulo: "Cita no encontrada", icono: "🔍", mensaje: "No encontramos una cita asociada a este enlace. Es posible que ya haya sido cancelada." }));
+    }
+
+    await withWriteLock(async () => {
+      const db2 = await getDB();
+      db2.run("UPDATE citas SET confirmado = 2 WHERE id = ?", [cita.id]);
+      db2.run("DELETE FROM citas WHERE id = ?", [cita.id]);
+      saveDB();
+    });
+
+    auditLog("CANCELAR_POR_ENLACE", { id: cita.id, nombre: cita.nombre, fecha: cita.fecha, hora: cita.hora });
+    res.send(renderPagina({
+      titulo: "Cita cancelada",
+      icono: "🗓️",
+      mensaje: `Tu cita de ${cita.servicio} ha sido cancelada. Si deseas reprogramar, escríbenos por el chat o llama a la clinica.`,
+      detalle: [
+        ["Fecha anterior", fechaLegible(cita.fecha)],
+        ["Hora", cita.hora],
+      ],
+    }));
+  } catch (err) {
+    log("error", "Error al cancelar cita por enlace", { error: err.message });
+    res.status(500).send(renderPagina({ titulo: "Error", icono: "❌", mensaje: "Ocurrio un error al cancelar tu cita. Intenta de nuevo o contacta a la clinica." }));
+  }
+});
+
+app.get("/api/admin/recordatorios", requireAdmin, async (_req, res) => {
+  try {
+    const db = await getDB();
+    const ahora = new Date();
+    const hoyCol = new Date(ahora.getTime() - 5 * 3600 * 1000).toISOString().slice(0, 10);
+    const inicio7 = new Date(ahora.getTime() - 5 * 3600 * 1000 + 7 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+
+    const total = db.exec("SELECT COUNT(*) FROM citas")[0].values[0][0];
+    const conEmail = db.exec("SELECT COUNT(*) FROM citas WHERE email IS NOT NULL AND email <> ''")[0].values[0][0];
+    const sinEmail = total - conEmail;
+    const enviados = db.exec("SELECT COUNT(*) FROM citas WHERE recordatorio_enviado = 1")[0].values[0][0];
+    const confirmados = db.exec("SELECT COUNT(*) FROM citas WHERE confirmado = 1")[0].values[0][0];
+    const pendientes = db.exec(
+      "SELECT COUNT(*) FROM citas WHERE recordatorio_enviado = 0 AND email IS NOT NULL AND email <> '' AND fecha >= ? AND fecha <= ?",
+      [hoyCol, inicio7]
+    )[0].values[0][0];
+
+    const proximas = [];
+    const stmt = db.prepare(
+      "SELECT id, nombre, telefono, email, servicio, fecha, hora, sede, dentista, confirmado FROM citas WHERE recordatorio_enviado = 0 AND email IS NOT NULL AND email <> '' AND fecha >= ? AND fecha <= ? ORDER BY fecha, hora",
+    );
+    stmt.bind([hoyCol, inicio7]);
+    while (stmt.step()) proximas.push(stmt.getAsObject());
+    stmt.free();
+
+    const enviadas = [];
+    const stmt2 = db.prepare(
+      "SELECT id, nombre, telefono, email, servicio, fecha, hora, sede, confirmado, recordatorio_enviado_en FROM citas WHERE recordatorio_enviado = 1 ORDER BY recordatorio_enviado_en DESC, fecha, hora",
+    );
+    while (stmt2.step()) enviadas.push(stmt2.getAsObject());
+    stmt2.free();
+
+    auditLog("REPORTE_RECORDATORIOS", { total, conEmail, enviados, confirmados, pendientes });
+    res.json({
+      resumen: { total, conEmail, sinEmail, enviados, pendientes, confirmados },
+      proximas,
+      enviadas,
+      sedes: getSedes(),
+    });
+  } catch (err) {
+    log("error", "Error al generar reporte de recordatorios", { error: err.message });
+    res.status(500).json({ error: "Error al generar el reporte de recordatorios." });
+  }
+});
+
+app.post("/api/admin/recordatorios/prueba", requireAdmin, async (req, res) => {
+  const email = (req.body && req.body.email) || process.env.ADMIN_EMAIL;
+  if (!email || typeof email !== "string" || !email.trim()) {
+    return res.status(400).json({ error: "Se requiere un email de destino (ADMIN_EMAIL o body.email)." });
+  }
+
+  const cita = {
+    id: 0,
+    nombre: "Paciente Demo",
+    cedula: "0000000000",
+    telefono: "3000000000",
+    servicio: "limpieza",
+    fecha: "2099-01-01",
+    hora: "10:00",
+    dentista: "Dr. Perez",
+    sede: getSede(undefined).nombre,
+    confirm_token: "0".repeat(64),
+  };
+
+  try {
+    const contenido = generarContenidoEmail(cita);
+    await enviarRecordatorio({ ...cita, email: email.trim() });
+    auditLog("RECORDATORIO_PRUEBA", { email: email.trim(), asunto: contenido.subject });
+    res.json({ exito: true, mensaje: `Email de prueba enviado a ${email.trim()}.` });
+  } catch (err) {
+    log("error", "Error al enviar email de prueba", { error: err.message });
+    res.status(500).json({ error: `Error al enviar email de prueba: ${err.message}` });
+  }
+});
+
+app.post("/api/admin/recordatorios/:id/enviar", requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  if (!/^\d+$/.test(id)) return res.status(400).json({ error: "ID de cita invalido." });
+
+  try {
+    const db = await getDB();
+    const stmt = db.prepare("SELECT * FROM citas WHERE id = ?");
+    stmt.bind([id]);
+    const existe = stmt.step();
+    const cita = existe ? stmt.getAsObject() : null;
+    stmt.free();
+
+    if (!cita) return res.status(404).json({ error: "Cita no encontrada." });
+    if (!cita.email) return res.status(400).json({ error: "La cita no tiene un email asociado." });
+
+    const citaConToken = asegurarToken(db, cita);
+    const enviado = await enviarRecordatorio(citaConToken);
+
+    if (!enviado) {
+      return res.status(500).json({ error: "SMTP no configurado. No se pudo enviar el recordatorio." });
+    }
+
+    await withWriteLock(async () => {
+      const db2 = await getDB();
+      db2.run("UPDATE citas SET recordatorio_enviado = 1, recordatorio_enviado_en = ? WHERE id = ?", [new Date().toISOString(), id]);
+      saveDB();
+    });
+
+    auditLog("RECORDATORIO_MANUAL", { id, nombre: cita.nombre, fecha: cita.fecha });
+    res.json({ exito: true, mensaje: `Recordatorio enviado a ${cita.email}.` });
+  } catch (err) {
+    log("error", "Error al enviar recordatorio manual", { error: err.message });
+    res.status(500).json({ error: "Error al enviar el recordatorio." });
+  }
+});
+
 app.get("/api/admin/citas", requireAdmin, async (_req, res) => {
   try {
     const db = await getDB();
@@ -175,7 +401,7 @@ app.get("/api/admin/citas", requireAdmin, async (_req, res) => {
     }
     stmt.free();
     auditLog("LISTAR_TODAS_CITAS", { count: citas.length });
-    res.json({ citas });
+    res.json({ citas, sedes: getSedes() });
   } catch (err) {
     log("error", "Error al listar citas", { error: err.message });
     res.status(500).json({ error: "Error al listar citas." });
@@ -192,9 +418,9 @@ app.get("/api/admin/citas/export", requireAdmin, async (_req, res) => {
     }
     stmt.free();
 
-    const header = "id,nombre,cedula,telefono,email,servicio,fecha,hora,dentista,creado_en";
+    const header = "id,nombre,cedula,telefono,email,servicio,fecha,hora,dentista,sede,confirmado,recordatorio_enviado,creado_en";
     const csv = rows.map((r) =>
-      [r.id, r.nombre, r.cedula, r.telefono, r.email || "", r.servicio, r.fecha, r.hora, r.dentista || "", r.creado_en].map(csvEscape).join(",")
+      [r.id, r.nombre, r.cedula, r.telefono, r.email || "", r.servicio, r.fecha, r.hora, r.dentista || "", r.sede || "", r.confirmado == null ? 0 : r.confirmado, r.recordatorio_enviado || 0, r.creado_en].map(csvEscape).join(",")
     ).join("\n");
 
     auditLog("EXPORTAR_CITAS", { count: rows.length });

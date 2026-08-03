@@ -43,6 +43,27 @@ body {
 .btn-outline { background: transparent; border: 1.5px solid var(--border); color: var(--text-secondary); }
 .btn-outline:hover { border-color: var(--primary); color: var(--primary); }
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.section-title {
+  display: flex; align-items: center; justify-content: space-between;
+  margin: 28px 0 12px; gap: 12px; flex-wrap: wrap;
+}
+.section-title h2 { font-size: 1rem; font-weight: 600; color: var(--text); }
+.section-actions { display: flex; align-items: center; gap: 8px; }
+.select-filter {
+  padding: 7px 12px; border: 1.5px solid var(--border); border-radius: 8px;
+  font-size: 0.8rem; font-family: inherit; color: var(--text); background: var(--surface);
+  outline: none;
+}
+.select-filter:focus { border-color: var(--primary-light); }
+.badge {
+  display: inline-block; padding: 3px 10px; border-radius: 999px;
+  font-size: 0.72rem; font-weight: 600;
+}
+.badge-green { background: #dcfce7; color: #15803d; }
+.badge-yellow { background: #fef9c3; color: #a16207; }
+.badge-red { background: #fee2e2; color: #b91c1c; }
+.badge-blue { background: #dbeafe; color: #1d4ed8; }
+.badge-gray { background: #f1f5f9; color: #64748b; }
 .stat-card {
   background: var(--surface); border-radius: var(--radius); padding: 16px;
   box-shadow: 0 1px 4px rgba(0,0,0,0.04);
